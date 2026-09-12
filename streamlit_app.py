@@ -52,15 +52,14 @@ if st.button("🧭 Kompass starten", use_container_width=True):
 
             # 2. Cashflow, Marge & Cash-Burn
             op_cashflow = info.get("operatingCashflow", 0) or 0
-            free_cashflow = info.get("freeCashflow", None)
             profit_margin = (info.get("profitMargins", 0) or 0) * 100
 
-            # 3. Dividende (Prozentwert-Korrektur)
-            raw_div_yield = info.get("dividendYield", 0) or 0
-            if raw_div_yield < 1.0 and raw_div_yield > 0:
-                div_yield = raw_div_yield * 100
+            # 3. Dividende (Sichere Korrektur)
+            raw_div = info.get("dividendYield", 0) or 0
+            if raw_div > 0.15: 
+                div_yield = raw_div  # Wert wird von Yahoo bereits in % geliefert (z.B. 0.33 %)
             else:
-                div_yield = raw_div_yield
+                div_yield = raw_div * 100  # Wert wird als Dezimalzahl geliefert (z.B. 0.0033 -> 0.33 %)
 
             payout_ratio = (info.get("payoutRatio", 0) or 0) * 100
 
@@ -78,7 +77,6 @@ if st.button("🧭 Kompass starten", use_container_width=True):
             if net_cash > 0: oma_score += 20
             else: oma_score -= 15
             
-            # Strikte Bestrafung bei negativem Cashflow (Cash-Burn)
             if op_cashflow < 0:
                 oma_score -= 20
                 
