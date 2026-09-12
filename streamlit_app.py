@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 
 st.set_page_config(
-    page_title="OmaKurz Scanner v0.4",
+    page_title="OmaKurz Scanner v0.5",
     page_icon="🧭",
     layout="centered"
 )
@@ -21,7 +21,7 @@ st.markdown("""
 st.markdown("""
 <div class="hero">
   <div class="compass">🧭</div>
-  <h1>OMAKURZ SCANNER v0.4</h1>
+  <h1>OMAKURZ SCANNER v0.5</h1>
   <p>Erst verstehen. Dann investieren.</p>
 </div>
 <div class="quote">„Was du nicht verstehst, kaufst du nicht.“</div>
@@ -55,8 +55,13 @@ if st.button("🧭 Kompass starten", use_container_width=True):
             free_cashflow = info.get("freeCashflow", None)
             profit_margin = (info.get("profitMargins", 0) or 0) * 100
 
-            # 3. Dividende
-            div_yield = (info.get("dividendYield", 0) or 0) * 100
+            # 3. Dividende (Prozentwert-Korrektur)
+            raw_div_yield = info.get("dividendYield", 0) or 0
+            if raw_div_yield < 1.0 and raw_div_yield > 0:
+                div_yield = raw_div_yield * 100
+            else:
+                div_yield = raw_div_yield
+
             payout_ratio = (info.get("payoutRatio", 0) or 0) * 100
 
             # 4. Investoren & Anker-Aktionäre
@@ -75,11 +80,11 @@ if st.button("🧭 Kompass starten", use_container_width=True):
             
             # Strikte Bestrafung bei negativem Cashflow (Cash-Burn)
             if op_cashflow < 0:
-                oma_score -= 20 # Verbrennt laufend Geld!
+                oma_score -= 20
                 
             if pb_ratio and pb_ratio < 3.0: oma_score += 15
             if payout_ratio > 0 and payout_ratio <= 70: oma_score += 15
-            elif payout_ratio > 90: oma_score -= 25 # Substanzfraß
+            elif payout_ratio > 90: oma_score -= 25
             
             oma_score = max(10, min(100, oma_score))
 
@@ -122,7 +127,6 @@ if st.button("🧭 Kompass starten", use_container_width=True):
             f1.metric("Operativer Cashflow", f"{op_cashflow / 1e9:.2f} Mrd. {currency}")
             f2.metric("KGV", f"{pe_ratio:.1f}" if pe_ratio else "k.A.")
             
-            # Status der Geld-Quelle
             if op_cashflow > 0:
                 f3.metric("Finanzierungs-Quelle", "✅ Aus Betrieb")
             else:
@@ -136,7 +140,7 @@ if st.button("🧭 Kompass starten", use_container_width=True):
             d3.metric("Profi-Investoren", f"{inst_ownership:.1f} %")
             d4.metric("Insider / Gründer", f"{insider_ownership:.1f} %")
 
-            # 4. Dynamische Gegen-Analyse (Risikocheck inkl. Wandelanleihen)
+            # 4. Dynamische Gegen-Analyse (Risikocheck)
             st.subheader("🌖 4. Gegen-Analyse (Risikocheck)")
             risks = []
             
@@ -170,5 +174,5 @@ if st.button("🧭 Kompass starten", use_container_width=True):
             st.error(f"Fehler beim Abrufen der Daten: {e}")
 
 st.divider()
-st.caption("OmaKurz Scanner · Version 0.4 · Live-Datenquelle: Yahoo Finance")
+st.caption("OmaKurz Scanner · Version 0.5 · Live-Datenquelle: Yahoo Finance")
             
