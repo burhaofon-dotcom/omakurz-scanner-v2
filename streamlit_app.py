@@ -929,7 +929,7 @@ def count_available_values(
     return count
 
 
-def has_meaningful_series(
+def hseries: Optional[pd.Series],as_meaningful_series(
     series: Optional[pd.Series],
     minimum_values: int = 2,
 ) -> bool:
