@@ -1,196 +1,37 @@
+# ============================================================
+# OmaKurz™ Scanner
+# Datei: omakurz_helpers.py
+# ============================================================
 
-import math
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
+import numpy as np
+import pandas as pd
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import numpy as np
 
-
-# ============================================================
-# OmaKurz™ Scanner v2.4
-# ============================================================
-#
-# 🏛️ OMA        = Substanz
-# 🚀 KURZ       = Zukunft
-# ⚡ DYNAMIK    = Wachstum und Beschleunigung
-# 💰 KAPITAL    = Finanzierung und Aktienentwicklung
-# 🕵️ DETEKTIV   = Cash, Debt und Runway
-# 🔍 EVIDENZ    = Datenqualität und Datenlücken
-# 🧬 PIPELINE   = Zukunftsprogramme
-# 🧠 REALITY    = Story versus belegbare Daten
-# ⚖️ BEWERTUNG  = Erwartung und Sicherheitsmarge
-# 💎 QUALITÄT   = Rohstein bis Kronjuwel
-# 🔨 OMA-HAMMER = harte Warnsignale
-#
-# WICHTIG:
-# - Kein Buy / Hold / Sell
-# - Keine automatische Kaufempfehlung
-# - Kein künstliches Kursziel
-# - Qualität ist nicht dasselbe wie Bewertung
-# - Aktienanstieg ist nicht automatisch bewiesene Verwässerung
-# - yfinance ist keine automatische Primärquellenprüfung
-# - Pipeline-Daten werden nicht erfunden
-# ============================================================
-
-
-# ============================================================
-# SEITENKONFIGURATION
-# ============================================================
-
-st.set_page_config(
-    page_title="OmaKurz™ Scanner v2.4",
-    page_icon="🧓",
-    layout="wide",
-)
-
-
-# ============================================================
-# STYLING
-# ============================================================
-
-st.markdown(
-    """
-    <style>
-    .main {
-        padding-top: 1rem;
-    }
-
-    .omakurz-card {
-        padding: 1rem 1.2rem;
-        border-radius: 14px;
-        border: 1px solid rgba(128,128,128,0.25);
-        margin-bottom: 1rem;
-    }
-
-    .omakurz-title {
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin-bottom: 0.4rem;
-    }
-
-    .omakurz-subtitle {
-        color: #888;
-        font-size: 0.95rem;
-        margin-bottom: 1rem;
-    }
-
-    .quality-card {
-        padding: 1.4rem;
-        border-radius: 16px;
-        border: 1px solid rgba(128,128,128,0.30);
-        margin: 1rem 0;
-    }
-
-    .quality-title {
-        font-size: 2rem;
-        font-weight: 800;
-    }
-
-    .quality-description {
-        font-size: 1.02rem;
-        line-height: 1.65;
-    }
-
-    .oma-quote {
-        padding: 1rem;
-        border-left: 4px solid #888;
-        margin: 1rem 0;
-        font-style: italic;
-        line-height: 1.6;
-    }
-
-    .warning-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(220,150,0,0.35);
-        background: rgba(255,180,0,0.08);
-        margin-bottom: 0.8rem;
-    }
-
-    .danger-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(220,0,0,0.35);
-        background: rgba(255,0,0,0.06);
-        margin-bottom: 0.8rem;
-    }
-
-    .success-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(0,160,80,0.35);
-        background: rgba(0,180,80,0.06);
-        margin-bottom: 0.8rem;
-    }
-
-    .neutral-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(128,128,128,0.25);
-        background: rgba(128,128,128,0.05);
-        margin-bottom: 0.8rem;
-    }
-
-    .glossary-term {
-        font-weight: 700;
-        font-size: 1.05rem;
-    }
-
-    .small-note {
-        color: #888;
-        font-size: 0.85rem;
-        line-height: 1.5;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================
-# ALLGEMEINE HILFSFUNKTIONEN
-# ============================================================
 
 def safe_float(value) -> Optional[float]:
-    """Konvertiert einen Wert robust in eine endliche Zahl."""
+    """Versucht einen Wert sicher in float umzuwandeln."""
+    if value is None:
+        return None
 
     try:
-        if value is None:
+        if pd.isna(value):
             return None
-
-        if isinstance(value, pd.DataFrame):
-            if value.empty:
-                return None
-            value = value.iloc[0, 0]
-
-        elif isinstance(value, pd.Series):
-            if value.empty:
-                return None
-            value = value.iloc[0]
-
-        value = float(value)
-
-        if not np.isfinite(value):
-            return None
-
-        return value
-
     except Exception:
+        pass
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
         return None
 
 
 def clean_series(series) -> pd.Series:
-    """Liefert immer eine bereinigte numerische Series."""
-
+    """Bereinigt eine Pandas-Zeitreihe."""
     if series is None:
         return pd.Series(dtype=float)
-
-    if isinstance(series, pd.DataFrame):
-        if series.empty:
-            return pd.Series(dtype=float)
-        series = series.iloc[:, 0]
 
     if not isinstance(series, pd.Series):
         try:
@@ -198,673 +39,910 @@ def clean_series(series) -> pd.Series:
         except Exception:
             return pd.Series(dtype=float)
 
+    result = pd.to_numeric(series, errors="coerce")
+    result = result.dropna()
+
     try:
-        result = pd.to_numeric(series, errors="coerce")
-        result = result.dropna()
-
-        try:
-            result = result.sort_index()
-        except Exception:
-            pass
-
-        return result.astype(float)
-
+        result = result.sort_index()
     except Exception:
-        return pd.Series(dtype=float)
-
-
-def normalize_dataframe(df) -> pd.DataFrame:
-    """Normalisiert DataFrames möglichst robust."""
-
-    if df is None:
-        return pd.DataFrame()
-
-    if not isinstance(df, pd.DataFrame):
-        return pd.DataFrame()
-
-    if df.empty:
-        return pd.DataFrame()
-
-    result = df.copy()
-
-    if isinstance(result.index, pd.MultiIndex):
-        try:
-            result.index = result.index.get_level_values(-1)
-        except Exception:
-            pass
+        pass
 
     return result
 
 
 def find_row(
-    df: Optional[pd.DataFrame],
-    candidates: List[str],
-) -> pd.Series:
-    """
-    Sucht eine Finanzzeile.
-
-    Es wird zuerst exakt und danach vorsichtig per Teilstring gesucht.
-    """
-
-    df = normalize_dataframe(df)
-
-    if df.empty:
-        return pd.Series(dtype=float)
-
-    normalized = {
-        str(index).strip().lower(): index
-        for index in df.index
-    }
-
-    for candidate in candidates:
-        key = str(candidate).strip().lower()
-
-        if key in normalized:
-            result = clean_series(
-                df.loc[normalized[key]]
-            )
-
-            if not result.empty:
-                return result
-
-    for candidate in candidates:
-        key = str(candidate).strip().lower()
-
-        for normalized_key, original_key in normalized.items():
-            if key in normalized_key:
-                result = clean_series(
-                    df.loc[original_key]
-                )
-
-                if not result.empty:
-                    return result
-
-    return pd.Series(dtype=float)
-
-
-def find_share_row(
-    balance_sheet: Optional[pd.DataFrame],
-    financials: Optional[pd.DataFrame],
-) -> pd.Series:
-    """
-    Sucht nach echten Aktienzahl-Kennzahlen.
-
-    Wichtig:
-    'Common Stock' wird bewusst NICHT verwendet, weil es häufig
-    einen Bilanzwert und nicht die Anzahl der Aktien beschreibt.
-    """
-
-    balance_sheet = normalize_dataframe(balance_sheet)
-    financials = normalize_dataframe(financials)
-
-    share_candidates = [
-        "Ordinary Shares Number",
-        "Share Issued",
-        "Shares Issued",
-        "Common Stock Shares Outstanding",
-    ]
-
-    result = find_row(
-        balance_sheet,
-        share_candidates,
-    )
-
-    if not result.empty:
-        return result
-
-    result = find_row(
-        financials,
-        share_candidates,
-    )
-
-    return result
-
-
-def latest_value(series) -> Optional[float]:
-    s = clean_series(series)
-
-    if s.empty:
+    dataframe: Optional[pd.DataFrame],
+    exact_names=None,
+    contains_names=None,
+) -> Optional[pd.Series]:
+    """Sucht eine Zeile anhand exakter oder teilweiser Namen."""
+    if dataframe is None:
         return None
 
-    return safe_float(s.iloc[-1])
+    if not isinstance(dataframe, pd.DataFrame):
+        return None
+
+    if dataframe.empty:
+        return None
+
+    if exact_names is None:
+        exact_names = []
+
+    if contains_names is None:
+        contains_names = []
+
+    for name in exact_names:
+        target = str(name).strip().lower()
+
+        for index in dataframe.index:
+            if str(index).strip().lower() == target:
+                return dataframe.loc[index]
+
+    for name in contains_names:
+        target = str(name).strip().lower()
+
+        for index in dataframe.index:
+            if target in str(index).strip().lower():
+                return dataframe.loc[index]
+
+    return None
+    def latest_value(series) -> Optional[float]:
+    """Liefert den jüngsten numerischen Wert einer Zeitreihe."""
+    cleaned = clean_series(series)
+
+    if cleaned.empty:
+        return None
+
+    try:
+        return safe_float(cleaned.iloc[-1])
+    except Exception:
+        return None
 
 
 def first_value(series) -> Optional[float]:
-    s = clean_series(series)
+    """Liefert den ältesten numerischen Wert einer Zeitreihe."""
+    cleaned = clean_series(series)
 
-    if s.empty:
+    if cleaned.empty:
         return None
 
-    return safe_float(s.iloc[0])
+    try:
+        return safe_float(cleaned.iloc[0])
+    except Exception:
+        return None
 
 
 def percent_change(
-    old,
-    new,
+    current: Optional[float],
+    previous: Optional[float],
 ) -> Optional[float]:
+    """Berechnet die prozentuale Veränderung."""
+    current_value = safe_float(current)
+    previous_value = safe_float(previous)
 
-    old = safe_float(old)
-    new = safe_float(new)
-
-    if old is None or new is None:
+    if current_value is None or previous_value is None:
         return None
 
-    if old == 0:
+    if previous_value == 0:
         return None
 
-    return ((new / old) - 1.0) * 100.0
+    return (
+        (current_value - previous_value)
+        / abs(previous_value)
+    ) * 100.0
+
+
+def absolute_change(
+    current: Optional[float],
+    previous: Optional[float],
+) -> Optional[float]:
+    """Berechnet die absolute Veränderung."""
+    current_value = safe_float(current)
+    previous_value = safe_float(previous)
+
+    if current_value is None or previous_value is None:
+        return None
+
+    return current_value - previous_value
 
 
 def format_number(
     value: Optional[float],
+    decimals: int = 1,
+    fallback: str = "n. a.",
 ) -> str:
+    """Formatiert eine Zahl für die Benutzeroberfläche."""
+    number = safe_float(value)
 
-    if value is None:
-        return "n/a"
+    if number is None:
+        return fallback
 
-    return f"{value:,.0f}".replace(",", ".")
+    formatted = (
+        f"{number:,.{decimals}f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+
+    return formatted
 
 
 def format_percent(
     value: Optional[float],
+    decimals: int = 1,
+    fallback: str = "n. a.",
 ) -> str:
+    """Formatiert einen Prozentwert."""
+    number = safe_float(value)
 
-    if value is None:
-        return "n/a"
+    if number is None:
+        return fallback
 
-    return f"{value:+.1f} %"
+    formatted = (
+        f"{number:,.{decimals}f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+
+    return f"{formatted}%"
 
 
 def format_eur(
     value: Optional[float],
+    decimals: int = 0,
+    fallback: str = "n. a.",
 ) -> str:
+    """Formatiert einen EUR-Betrag."""
+    number = safe_float(value)
 
-    if value is None:
-        return "n/a"
+    if number is None:
+        return fallback
 
-    absolute = abs(value)
+    formatted = (
+        f"{number:,.{decimals}f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
 
-    if absolute >= 1_000_000_000:
-        return f"{value / 1_000_000_000:,.2f} Mrd. €"
-
-    if absolute >= 1_000_000:
-        return f"{value / 1_000_000:,.2f} Mio. €"
-
-    if absolute >= 1_000:
-        return f"{value / 1_000:,.1f} Tsd. €"
-
-    return f"{value:,.2f} €"
-
-
-def format_native(
+    return f"{formatted} €"
+    def format_currency(
     value: Optional[float],
-    currency: str,
+    currency: str = "EUR",
+    decimals: int = 0,
+    fallback: str = "n. a.",
 ) -> str:
+    """Formatiert einen Geldbetrag mit Währungskürzel."""
+    number = safe_float(value)
 
-    if value is None:
-        return "n/a"
+    if number is None:
+        return fallback
 
-    currency = currency or ""
+    formatted = (
+        f"{number:,.{decimals}f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
 
-    absolute = abs(value)
-
-    if absolute >= 1_000_000_000:
-        return f"{value / 1_000_000_000:,.2f} Mrd. {currency}"
-
-    if absolute >= 1_000_000:
-        return f"{value / 1_000_000:,.2f} Mio. {currency}"
-
-    if absolute >= 1_000:
-        return f"{value / 1_000:,.1f} Tsd. {currency}"
-
-    return f"{value:,.2f} {currency}"
+    return f"{formatted} {currency}"
 
 
-# ============================================================
-# FX
-# ============================================================
+def format_multiple(
+    value: Optional[float],
+    decimals: int = 1,
+    fallback: str = "n. a.",
+) -> str:
+    """Formatiert einen Multiplikator."""
+    number = safe_float(value)
 
-@st.cache_data(ttl=3600)
-def get_global_fx_rate(currency: str) -> float:
+    if number is None:
+        return fallback
 
-    currency = (currency or "EUR").upper()
+    formatted = (
+        f"{number:,.{decimals}f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
 
-    if currency == "EUR":
-        return 1.0
+    return f"{formatted}x"
 
-    if currency == "GBX":
-        return 0.01 * get_global_fx_rate("GBP")
 
-    fallback = {
-        "USD": 0.92,
-        "GBP": 1.17,
-        "JPY": 0.0061,
-        "HKD": 0.118,
-        "SGD": 0.69,
-        "CHF": 1.07,
-        "CAD": 0.68,
-        "AUD": 0.61,
-    }
+def get_financial_statement(
+    ticker: yf.Ticker,
+    statement_name: str,
+) -> pd.DataFrame:
+    """Holt eine Finanz-Tabelle von yfinance."""
+    try:
+        if statement_name == "income_stmt":
+            dataframe = ticker.income_stmt
+
+        elif statement_name == "financials":
+            dataframe = ticker.financials
+
+        elif statement_name == "balance_sheet":
+            dataframe = ticker.balance_sheet
+
+        elif statement_name == "cashflow":
+            dataframe = ticker.cashflow
+
+        else:
+            return pd.DataFrame()
+
+        if dataframe is None:
+            return pd.DataFrame()
+
+        if not isinstance(dataframe, pd.DataFrame):
+            return pd.DataFrame()
+
+        return dataframe.copy()
+
+    except Exception:
+        return pd.DataFrame()
+
+
+def get_company_currency(
+    ticker: yf.Ticker,
+    info: Optional[dict] = None,
+) -> str:
+    """Versucht die Berichtswährung des Unternehmens zu bestimmen."""
+    if info is not None:
+        try:
+            currency = info.get("currency")
+
+            if currency:
+                return str(currency).upper()
+        except Exception:
+            pass
 
     try:
-        fx_ticker = yf.Ticker(
-            f"{currency}EUR=X"
-        )
+        fast_info = ticker.fast_info
 
-        history = fx_ticker.history(
-            period="5d"
-        )
+        if fast_info is not None:
+            currency = fast_info.get("currency")
 
-        if not history.empty:
-            close = history["Close"].dropna()
-
-            if not close.empty:
-                value = safe_float(close.iloc[-1])
-
-                if value is not None and value > 0:
-                    return value
+            if currency:
+                return str(currency).upper()
 
     except Exception:
         pass
 
-    return fallback.get(currency, 1.0)
+    return "UNKNOWN"
 
 
-# ============================================================
-# BESCHLEUNIGUNG
-# ============================================================
+def normalize_currency(
+    currency: Optional[str],
+) -> str:
+    """Vereinheitlicht einfache Währungsbezeichnungen."""
+    if currency is None:
+        return "UNKNOWN"
 
-def classify_acceleration(
-    series: pd.Series,
-) -> dict:
+    value = str(currency).strip().upper()
 
-    s = clean_series(series)
-
-    result = {
-        "status": "Nicht ausreichend Daten",
-        "score": 0,
-        "deltas": [],
-        "delta_changes": [],
-        "growth_rates": [],
-        "message": (
-            "Für eine belastbare Beschleunigungsanalyse "
-            "fehlen historische Daten."
-        ),
+    mapping = {
+        "EURO": "EUR",
+        "€": "EUR",
+        "US DOLLAR": "USD",
+        "$": "USD",
+        "POUND": "GBP",
+        "£": "GBP",
     }
 
-    if len(s) < 3:
-        return result
+    return mapping.get(value, value)
+    @st.cache_data(ttl=3600, show_spinner=False)
+def get_global_fx_rate(
+    from_currency: str,
+    to_currency: str = "EUR",
+) -> Optional[float]:
+    """
+    Holt einen aktuellen Wechselkurs über Yahoo Finance.
 
-    values = s.values.astype(float)
+    Der Kurs dient vor allem zur Darstellung in EUR.
+    Historische operative Vergleiche sollten möglichst
+    in der jeweiligen Originalwährung erfolgen.
+    """
+    if not from_currency:
+        return None
 
-    deltas = np.diff(values)
-    delta_changes = np.diff(deltas)
+    source = str(from_currency).upper().strip()
+    target = str(to_currency).upper().strip()
 
-    growth_rates = []
+    if source == target:
+        return 1.0
 
-    for old, new in zip(values[:-1], values[1:]):
-        if old != 0:
-            growth_rates.append(
-                (new / old - 1.0) * 100.0
-            )
-        else:
-            growth_rates.append(np.nan)
+    pair = f"{source}{target}=X"
 
-    result["deltas"] = deltas.tolist()
-    result["delta_changes"] = delta_changes.tolist()
-    result["growth_rates"] = growth_rates
+    try:
+        fx_ticker = yf.Ticker(pair)
+        history = fx_ticker.history(period="5d")
 
-    if values[-1] < values[-2]:
+        if history is None or history.empty:
+            return None
 
-        result["status"] = "🔴 Rückläufig"
-        result["score"] = 20
-        result["message"] = (
-            "Die jüngste Kennzahl liegt unter dem "
-            "vorherigen Vergleichswert. Das ist kein "
-            "Beschleunigungssignal, sondern zunächst "
-            "ein Rückgang."
-        )
+        if "Close" not in history.columns:
+            return None
 
-        return result
+        close_series = clean_series(history["Close"])
 
-    if delta_changes[-1] > 0:
+        if close_series.empty:
+            return None
 
-        result["status"] = "🟢 Beschleunigend"
-        result["score"] = 90
-        result["message"] = (
-            "Die absoluten Zuwächse werden größer. "
-            "Das spricht für eine echte operative "
-            "Beschleunigung und nicht lediglich für "
-            "weiteres Wachstum."
-        )
+        return latest_value(close_series)
 
-        return result
+    except Exception:
+        return None
 
-    if delta_changes[-1] < 0:
 
-        result["status"] = "🟠 Verlangsamend"
-        result["score"] = 50
-        result["message"] = (
-            "Die Kennzahl wächst noch, aber der "
-            "zusätzliche Zuwachs wird kleiner. "
-            "Wachstum und Beschleunigung sind hier "
-            "also nicht dasselbe."
-        )
+def convert_to_eur(
+    value: Optional[float],
+    from_currency: str,
+) -> Optional[float]:
+    """Konvertiert einen Betrag anhand des aktuellen FX-Kurses in EUR."""
+    number = safe_float(value)
 
-        return result
+    if number is None:
+        return None
 
-    result["status"] = "➡️ Wachsend, nicht beschleunigend"
-    result["score"] = 65
-    result["message"] = (
-        "Die Kennzahl wächst, zeigt aber keine "
-        "klare zusätzliche Beschleunigung."
+    currency = normalize_currency(from_currency)
+
+    if currency == "EUR":
+        return number
+
+    fx_rate = get_global_fx_rate(currency, "EUR")
+
+    if fx_rate is None:
+        return None
+
+    return number * fx_rate
+
+
+def find_share_row(
+    balance_sheet: Optional[pd.DataFrame],
+) -> Optional[pd.Series]:
+    """
+    Sucht gezielt nach einer Aktienanzahl.
+
+    'Common Stock' wird bewusst nicht als Aktienanzahl verwendet,
+    weil es sich dabei um einen Bilanzwert handeln kann.
+    """
+    if balance_sheet is None:
+        return None
+
+    row = find_row(
+        balance_sheet,
+        exact_names=[
+            "Ordinary Shares Number",
+            "Share Issued",
+        ],
     )
 
-    return result
+    if row is not None:
+        return row
+
+    row = find_row(
+        balance_sheet,
+        contains_names=[
+            "Ordinary Shares Number",
+            "Share Issued",
+        ],
+    )
+
+    return row
 
 
-# ============================================================
-# MARGEN
-# ============================================================
-
-def calculate_margin_series(
-    revenue_series: pd.Series,
-    net_income_series: pd.Series,
+def get_share_series(
+    balance_sheet: Optional[pd.DataFrame],
 ) -> pd.Series:
+    """Liefert die bereinigte Zeitreihe der gemeldeten Aktienanzahl."""
+    row = find_share_row(balance_sheet)
 
-    revenue = clean_series(revenue_series)
-    net_income = clean_series(net_income_series)
-
-    if revenue.empty or net_income.empty:
+    if row is None:
         return pd.Series(dtype=float)
 
-    common_dates = revenue.index.intersection(
-        net_income.index
-    )
-
-    if len(common_dates) == 0:
-        return pd.Series(dtype=float)
-
-    margins = {}
-
-    for date in common_dates:
-
-        rev = safe_float(revenue.loc[date])
-        ni = safe_float(net_income.loc[date])
-
-        if (
-            rev is not None
-            and ni is not None
-            and rev != 0
-        ):
-            margins[date] = (ni / rev) * 100.0
-
-    return pd.Series(margins).sort_index()
+    return clean_series(row)
 
 
-def classify_margin_trend(
-    margin_series: pd.Series,
-) -> dict:
+def get_latest_shares(
+    balance_sheet: Optional[pd.DataFrame],
+) -> Optional[float]:
+    """Liefert die zuletzt gemeldete Aktienanzahl."""
+    shares = get_share_series(balance_sheet)
 
-    s = clean_series(margin_series)
+    if shares.empty:
+        return None
 
-    result = {
-        "status": "Nicht ausreichend Daten",
-        "score": 50,
-        "message": (
-            "Keine ausreichende Margen-Zeitreihe."
-        ),
-    }
-
-    if len(s) < 2:
-        return result
-
-    latest = safe_float(s.iloc[-1])
-    previous = safe_float(s.iloc[-2])
-
-    if latest is None or previous is None:
-        return result
-
-    change = latest - previous
-
-    if change > 2:
-
-        result["status"] = "🟢 Margen verbessern sich"
-        result["score"] = 85
-        result["message"] = (
-            "Die Nettomarge ist zuletzt spürbar "
-            "gestiegen. Das kann darauf hindeuten, "
-            "dass zusätzliches Geschäft zunehmend "
-            "profitabler wird."
-        )
-
-    elif change < -2:
-
-        result["status"] = "🟠 Margen verschlechtern sich"
-        result["score"] = 35
-        result["message"] = (
-            "Die Nettomarge ist zuletzt spürbar "
-            "gefallen. Hier sollte geprüft werden, "
-            "ob es sich um einen vorübergehenden "
-            "Effekt oder eine strukturelle Verschlechterung handelt."
-        )
-
-    else:
-
-        result["status"] = "➡️ Margen stabil"
-        result["score"] = 65
-        result["message"] = (
-            "Die Nettomarge zeigt zuletzt keine "
-            "starke Veränderung."
-        )
-
-    return result
+    return latest_value(shares)
 
 
-# ============================================================
-# FREE CASHFLOW
-# ============================================================
-
-def calculate_fcf(
-    ocf_series: pd.Series,
-    capex_series: pd.Series,
-) -> pd.Series:
-
-    ocf = clean_series(ocf_series)
-    capex = clean_series(capex_series)
-
-    if ocf.empty or capex.empty:
-        return pd.Series(dtype=float)
-
-    common_dates = ocf.index.intersection(
-        capex.index
-    )
-
-    if len(common_dates) == 0:
-        return pd.Series(dtype=float)
-
-    values = {}
-
-    for date in common_dates:
-
-        operating_cf = safe_float(
-            ocf.loc[date]
-        )
-
-        capital_expenditure = safe_float(
-            capex.loc[date]
-        )
-
-        if (
-            operating_cf is not None
-            and capital_expenditure is not None
-        ):
-            values[date] = (
-                operating_cf
-                + capital_expenditure
-            )
-
-    return pd.Series(values).sort_index()
-
-
-def classify_fcf_dynamics(
-    fcf_series: pd.Series,
-) -> dict:
-
-    s = clean_series(fcf_series)
-
-    result = {
-        "status": "Nicht ausreichend Daten",
-        "score": 50,
-        "message": (
-            "Keine ausreichende FCF-Zeitreihe."
-        ),
-    }
-
-    if len(s) < 2:
-        return result
-
-    latest = safe_float(s.iloc[-1])
-    previous = safe_float(s.iloc[-2])
-
-    if latest is None or previous is None:
-        return result
-
-    if latest > 0 and previous <= 0:
-
-        result["status"] = "🟢 FCF dreht positiv"
-        result["score"] = 90
-        result["message"] = (
-            "Der Free Cashflow ist zuletzt in den "
-            "positiven Bereich gedreht."
-        )
-
-    elif latest > 0 and previous > 0 and latest > previous:
-
-        result["status"] = "🟢 FCF verbessert sich"
-        result["score"] = 85
-        result["message"] = (
-            "Der positive Free Cashflow hat sich "
-            "gegenüber dem vorherigen Zeitraum verbessert."
-        )
-
-    elif latest > 0 and previous > 0 and latest < previous:
-
-        result["status"] = "🟠 FCF schwächer"
-        result["score"] = 50
-        result["message"] = (
-            "Der Free Cashflow bleibt positiv, ist "
-            "aber gegenüber dem vorherigen Zeitraum gefallen."
-        )
-
-    elif latest < 0 and previous < 0 and latest < previous:
-
-        result["status"] = "🔴 FCF-Belastung steigt"
-        result["score"] = 20
-        result["message"] = (
-            "Der negative Free Cashflow ist zuletzt "
-            "noch negativer geworden."
-        )
-
-    elif latest < 0:
-
-        result["status"] = "🟠 FCF negativ"
-        result["score"] = 30
-        result["message"] = (
-            "Der Free Cashflow ist aktuell negativ. "
-            "Damit ist besonders wichtig, wie viel "
-            "Liquidität vorhanden ist und wie lange "
-            "diese den Mittelabfluss tragen kann."
-        )
-
-    else:
-
-        result["status"] = "➡️ FCF uneinheitlich"
-        result["score"] = 45
-        result["message"] = (
-            "Die FCF-Entwicklung ist aktuell nicht eindeutig."
-        )
-
-    return result
-
-
-# ============================================================
-# AKTIENENTWICKLUNG
-# ============================================================
-
-def analyze_dilution(
-    shares_series: pd.Series,
-    revenue_series: pd.Series,
-    fcf_series: pd.Series,
-) -> dict:
-
-    shares = clean_series(shares_series)
-    revenue = clean_series(revenue_series)
-    fcf = clean_series(fcf_series)
-
-    result = {
-        "status": "Nicht ausreichend Daten",
-        "message": (
-            "Keine belastbare Aktienhistorie."
-        ),
-        "share_change_pct": None,
-        "revenue_change_pct": None,
-        "fcf_change_pct": None,
-        "share_start": None,
-        "share_end": None,
-    }
+def get_previous_shares(
+    balance_sheet: Optional[pd.DataFrame],
+) -> Optional[float]:
+    """Liefert die zweitjüngste gemeldete Aktienanzahl."""
+    shares = get_share_series(balance_sheet)
 
     if len(shares) < 2:
-        return result
+        return None
 
-    start = safe_float(shares.iloc[0])
-    end = safe_float(shares.iloc[-1])
+    try:
+        return safe_float(shares.iloc[-2])
+    except Exception:
+        return None
+        def get_revenue_series(
+    income_statement: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt die Umsatz-Zeitreihe."""
+    row = find_row(
+        income_statement,
+        exact_names=[
+            "Total Revenue",
+            "Operating Revenue",
+        ],
+    )
 
-    change = percent_change(start, end)
-
-    result["share_start"] = start
-    result["share_end"] = end
-    result["share_change_pct"] = change
-
-    if len(revenue) >= 2:
-        result["revenue_change_pct"] = percent_change(
-            revenue.iloc[0],
-            revenue.iloc[-1],
+    if row is None:
+        row = find_row(
+            income_statement,
+            contains_names=[
+                "Total Revenue",
+                "Operating Revenue",
+            ],
         )
 
-    if len(fcf) >= 2:
+    if row is None:
+        return pd.Series(dtype=float)
 
-        old_fcf = safe_float(fcf.iloc[0])
-        new_fcf = safe_float(fcf.iloc[-1])
+    return clean_series(row)
 
-        if (
-            old_fcf is not None
-            and new_fcf is not None
-            and old_fcf > 0
-        ):
-            result["fcf_change_pct"] = percent_change(
-                old_fcf,
-                new_fcf,
+
+def get_net_income_series(
+    income_statement: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt die Nettoergebnis-Zeitreihe."""
+    row = find_row(
+        income_statement,
+        exact_names=[
+            "Net Income",
+            "Net Income Common Stockholders",
+        ],
+    )
+
+    if row is None:
+        row = find_row(
+            income_statement,
+            contains_names=[
+                "Net Income Common Stockholders",
+                "Net Income",
+            ],
+        )
+
+    if row is None:
+        return pd.Series(dtype=float)
+
+    return clean_series(row)
+
+
+def get_operating_cash_flow_series(
+    cashflow_statement: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt die operative Cashflow-Zeitreihe."""
+    row = find_row(
+        cashflow_statement,
+        exact_names=[
+            "Operating Cash Flow",
+            "Total Cash From Operating Activities",
+        ],
+    )
+
+    if row is None:
+        row = find_row(
+            cashflow_statement,
+            contains_names=[
+                "Operating Cash Flow",
+                "Total Cash From Operating Activities",
+            ],
+        )
+
+    if row is None:
+        return pd.Series(dtype=float)
+
+    return clean_series(row)
+
+
+def get_capex_series(
+    cashflow_statement: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt die CapEx-Zeitreihe."""
+    row = find_row(
+        cashflow_statement,
+        exact_names=[
+            "Capital Expenditure",
+        ],
+    )
+
+    if row is None:
+        row = find_row(
+            cashflow_statement,
+            contains_names=[
+                "Capital Expenditure",
+            ],
+        )
+
+    if row is None:
+        return pd.Series(dtype=float)
+
+    return clean_series(row)
+
+
+def calculate_fcf(
+    operating_cash_flow: Optional[float],
+    capex: Optional[float],
+) -> Optional[float]:
+    """
+    Berechnet den Free Cash Flow.
+
+    Bei yfinance wird CapEx häufig negativ dargestellt.
+
+    Deshalb:
+        FCF = OCF + CapEx
+
+    Beispiel:
+        OCF = 100
+        CapEx = -30
+        FCF = 70
+    """
+    ocf = safe_float(operating_cash_flow)
+    capex_value = safe_float(capex)
+
+    if ocf is None or capex_value is None:
+        return None
+
+    return ocf + capex_value
+
+
+def get_cash_series(
+    balance_sheet: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt die verfügbare Liquidität."""
+    row = find_row(
+        balance_sheet,
+        exact_names=[
+            "Cash Cash Equivalents And Short Term Investments",
+            "Cash And Cash Equivalents",
+        ],
+    )
+
+    if row is None:
+        row = find_row(
+            balance_sheet,
+            contains_names=[
+                "Cash Cash Equivalents And Short Term Investments",
+                "Cash And Cash Equivalents",
+            ],
+        )
+
+    if row is None:
+        return pd.Series(dtype=float)
+
+    return clean_series(row)
+
+
+def get_debt_series(
+    balance_sheet: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt die Gesamtverschuldung."""
+    row = find_row(
+        balance_sheet,
+        exact_names=[
+            "Total Debt",
+        ],
+    )
+
+    if row is None:
+        row = find_row(
+            balance_sheet,
+            contains_names=[
+                "Total Debt",
+            ],
+        )
+
+    if row is None:
+        return pd.Series(dtype=float)
+
+    return clean_series(row)
+    def get_financing_cash_flow_series(
+    cashflow_statement: Optional[pd.DataFrame],
+) -> pd.Series:
+    """Holt den Cashflow aus Finanzierungstätigkeit."""
+    row = find_row(
+        cashflow_statement,
+        exact_names=[
+            "Financing Cash Flow",
+            "Total Cash From Financing Activities",
+        ],
+    )
+
+    if row is None:
+        row = find_row(
+            cashflow_statement,
+            contains_names=[
+                "Financing Cash Flow",
+                "Total Cash From Financing Activities",
+            ],
+        )
+
+    if row is None:
+        return pd.Series(dtype=float)
+
+    return clean_series(row)
+
+
+def get_net_cash(
+    cash: Optional[float],
+    debt: Optional[float],
+) -> Optional[float]:
+    """
+    Berechnet Net Cash.
+
+    Net Cash = Cash - Debt
+    """
+    cash_value = safe_float(cash)
+    debt_value = safe_float(debt)
+
+    if cash_value is None or debt_value is None:
+        return None
+
+    return cash_value - debt_value
+
+
+def get_last_two_values(
+    series: Optional[pd.Series],
+):
+    """
+    Liefert die beiden jüngsten Werte einer Zeitreihe.
+
+    Rückgabe:
+        (current, previous)
+    """
+    cleaned = clean_series(series)
+
+    if len(cleaned) < 2:
+        return None, None
+
+    return (
+        safe_float(cleaned.iloc[-1]),
+        safe_float(cleaned.iloc[-2]),
+    )
+
+
+def get_last_three_values(
+    series: Optional[pd.Series],
+):
+    """
+    Liefert die drei jüngsten Werte einer Zeitreihe.
+
+    Rückgabe:
+        (current, previous, older)
+    """
+    cleaned = clean_series(series)
+
+    if len(cleaned) < 3:
+        return None, None, None
+
+    return (
+        safe_float(cleaned.iloc[-1]),
+        safe_float(cleaned.iloc[-2]),
+        safe_float(cleaned.iloc[-3]),
+    )
+
+
+def calculate_growth_rate_series(
+    series: Optional[pd.Series],
+) -> pd.Series:
+    """
+    Berechnet die Wachstumsrate zwischen aufeinanderfolgenden
+    Perioden.
+    """
+    cleaned = clean_series(series)
+
+    if len(cleaned) < 2:
+        return pd.Series(dtype=float)
+
+    growth = cleaned.pct_change() * 100.0
+
+    growth = growth.replace(
+        [np.inf, -np.inf],
+        np.nan,
+    ).dropna()
+
+    return growth
+
+
+def calculate_acceleration_series(
+    series: Optional[pd.Series],
+) -> pd.Series:
+    """
+    Berechnet die Veränderung der Wachstumsrate.
+
+    Beispiel:
+
+        Umsatz:
+        100 -> 120 -> 150
+
+        Wachstum:
+        +20 % -> +25 %
+
+        Beschleunigung:
+        +5 Prozentpunkte
+
+    Das ist operative Beschleunigung und kein Kursmomentum.
+    """
+    growth = calculate_growth_rate_series(series)
+
+    if len(growth) < 2:
+        return pd.Series(dtype=float)
+
+    acceleration = growth.diff()
+
+    acceleration = acceleration.replace(
+        [np.inf, -np.inf],
+        np.nan,
+    ).dropna()
+
+    return acceleration
+    def get_ticker_info(
+    ticker: yf.Ticker,
+) -> dict:
+    """Holt die Unternehmensinformationen von yfinance."""
+    try:
+        info = ticker.info
+
+        if isinstance(info, dict):
+            return info
+
+    except Exception:
+        pass
+
+    return {}
+
+
+def get_current_price(
+    ticker: yf.Ticker,
+    info: Optional[dict] = None,
+) -> Optional[float]:
+    """
+    Ermittelt möglichst robust den aktuellen bzw. letzten Kurs.
+    """
+    if info is not None:
+        possible_keys = [
+            "currentPrice",
+            "regularMarketPrice",
+            "previousClose",
+        ]
+
+        for key in possible_keys:
+            value = safe_float(info.get(key))
+
+            if value is not None:
+                return value
+
+    try:
+        fast_info = ticker.fast_info
+
+        if fast_info is not None:
+            value = safe_float(
+                fast_info.get("lastPrice")
             )
 
-    if change is None:
-        return result
+            if value is not None:
+                return value
 
-    if change <= 3:
+    except Exception:
+        pass
 
-        result["status"] = "🟢 Aktienzahl weitgehend stabil"
-        result["message"] = (
-            "Die Aktienzahl hat sich über den "
-            "betrachteten Zeitraum nur gering verändert. "
-            "Das ist ein positives Signal für die Stabilität "
-            "der bestehenden Beteiligungsbasis."
-        )
+    try:
+        history = ticker.history(period="5d")
 
-        return result
+        if history is not None and not history.empty:
+            if "Close" in history.columns:
+                close_series = clean_series(history["Close"])
 
-    if change <= 10:
+                if not close_series.empty:
+                    return latest_value(close_series)
 
-        result["status"] = "🟡 Aktienzahl gestiegen"
-        result["message"] = (
-            "Die Aktienzahl ist gestiegen. Das kann "
-            "verschiedene Ursachen haben, beispiels
+    except Exception:
+        pass
+
+    return None
+
+
+def calculate_market_cap(
+    price: Optional[float],
+    shares: Optional[float],
+) -> Optional[float]:
+    """
+    Berechnet die Marktkapitalisierung.
+
+    Market Cap = Aktienkurs × Aktienanzahl
+    """
+    price_value = safe_float(price)
+    shares_value = safe_float(shares)
+
+    if price_value is None or shares_value is None:
+        return None
+
+    return price_value * shares_value
+
+
+def calculate_enterprise_value(
+    market_cap: Optional[float],
+    debt: Optional[float],
+    cash: Optional[float],
+) -> Optional[float]:
+    """
+    Vereinfachte Enterprise-Value-Berechnung.
+
+    EV = Market Cap + Debt - Cash
+    """
+    market_cap_value = safe_float(market_cap)
+    debt_value = safe_float(debt)
+    cash_value = safe_float(cash)
+
+    if (
+        market_cap_value is None
+        or debt_value is None
+        or cash_value is None
+    ):
+        return None
+
+    return (
+        market_cap_value
+        + debt_value
+        - cash_value
+    )
+
+
+def count_available_values(
+    *values,
+) -> int:
+    """Zählt vorhandene numerische Werte."""
+    count = 0
+
+    for value in values:
+        if safe_float(value) is not None:
+            count += 1
+
+    return count
+
+
+def has_meaningful_series(
+    series: Optional[pd.Series],
+    minimum_values: int = 2,
+) -> bool:
+    """Prüft, ob eine Zeitreihe genügend Datenpunkte besitzt."""
+    if series is None:
+        return False
+
+    cleaned = clean_series(series)
+
+    return len(cleaned) >= minimum_values
+
+
+def safe_text(
+    value,
+    fallback: str = "n. a.",
+) -> str:
+    """Wandelt einen Wert sicher in Text um."""
+    if value is None:
+        return fallback
+
+    text = str(value).strip()
+
+    if not text:
+        return fallback
+
+    return text
+    # ============================================================
+# ENDE DER DATEI
+# ============================================================
