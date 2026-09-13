@@ -1,14 +1,13 @@
 import streamlit as st
 import yfinance as yf
-import math
 
 st.set_page_config(
-    page_title="OmaKurz Scanner v1.0",
+    page_title="OmaKurz Scanner v1.1",
     page_icon="🧭",
     layout="wide"
 )
 
-# --- STYLING ---
+# --- STYLING (Gefixt für Mobile & Anti-FOMO Lesbarkeit) ---
 st.markdown("""
 <style>
 .main-header { text-align: center; padding: 10px 0; }
@@ -18,7 +17,7 @@ st.markdown("""
 .quote { font-family: 'Georgia', serif; font-style: italic; font-size: 16px; color: #d97706; text-align: center; margin-bottom: 25px; }
 .hammer-box { background-color: #fef2f2; border-left: 6px solid #dc2626; padding: 15px; border-radius: 4px; margin: 10px 0; }
 .diamond-box { background-color: #f0fdf4; border-left: 6px solid #16a34a; padding: 15px; border-radius: 4px; margin: 10px 0; }
-.fomo-shield { background-color: #fffbeb; border: 1px solid #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+.fomo-shield { background-color: #fffbeb; color: #1e293b; border: 1px solid #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -26,15 +25,15 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
   <div class="compass">🧭</div>
-  <h1>OMAKURZ™ SCANNER v1.0</h1>
+  <h1>OMAKURZ™ SCANNER v1.1</h1>
   <p>Analyse-Kompass & Anti-FOMO Forensik</p>
 </div>
 <div class="quote">„Was du nicht verstehst oder was nicht belegt ist, kaufst du nicht.“</div>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR: FORENSIK & STORY CHECK (Qualitative Daten) ---
+# --- SIDEBAR: FORENSIK & STORY CHECK ---
 st.sidebar.header("🔬 Forensik-Labor (Manuelle Belege)")
-st.sidebar.info("Hier prüfst du Angaben, die nicht in Standard-Bilanzen stehen (Wandelanleihen, Story, Pipeline).")
+st.sidebar.info("Manuelle Risikoregler für Wandelanleihen, Story & Belege.")
 
 dilution_risk = st.sidebar.select_slider(
     "💰 Verwässerungs- & Wandelanleihen-Risiko",
@@ -53,12 +52,12 @@ pipeline_stage = st.sidebar.selectbox(
     ["Keine Pipeline (Klassisches Business)", "Frühe Phase / Forschung (High Risk)", "Späte Phase / Meilensteine nah", "Kommerzialisiert & Skalierend"]
 )
 
-data_confidence = st.sidebar.slider("🔍 Daten-Vollständigkeit & Quellenqualität (%)", 10, 100, 90)
+data_confidence = st.sidebar.slider("🔍 Daten-Vollständigkeit & Quellenqualität (%)", 10, 100, 100)
 
 # --- MAIN INPUT ---
 col_in1, col_in2 = st.columns([3, 1])
 with col_in1:
-    ticker_input = st.text_input("Börsenkürzel / Ticker eingeben (z.B. AAPL, NVDA, BNTX, 6501.T) ...", key="ticker")
+    ticker_input = st.text_input("Börsenkürzel / Ticker eingeben (z.B. AAPL, BNTX, 3696.HK, NKLA) ...", key="ticker")
 with col_in2:
     st.write(" ")
     st.write(" ")
@@ -98,19 +97,25 @@ if scan_btn or ticker_input:
             rev_growth = (info.get("revenueGrowth", 0) or 0) * 100
             inst_ownership = (info.get("heldPercentInstitutions", 0) or 0) * 100
 
-            # Runway Berechnung (bei Cash-Burn)
+            # Intelligente Runway-Logik
+            runway_text = "Unbegrenzt (Cashflow +)"
             runway_months = None
-            if op_cashflow < 0 and total_cash > 0:
-                annual_burn = abs(op_cashflow)
-                runway_months = round((total_cash / annual_burn) * 12, 1)
+            if op_cashflow < 0:
+                if total_cash > 0:
+                    annual_burn = abs(op_cashflow)
+                    runway_months = round((total_cash / annual_burn) * 12, 1)
+                    runway_text = f"{runway_months} Monate"
+                else:
+                    runway_text = "🚨 Akut / Kein Cash-Polster"
 
-            # Acceleration (Verdopplungszeit der Erlöse nach Rule of 72)
             doubling_years = round(72 / rev_growth, 1) if rev_growth > 0 else "N/A"
 
             # === OMA-HAMMER (Knockout-Risiken) ===
             hammer_triggers = []
             if op_cashflow < 0 and (runway_months is not None and runway_months < 12):
-                hammer_triggers.append(f"🚨 **Akuter Cash-Burn:** Runway beträgt weniger als 12 Monate ({runway_months} Monate)! Insolvenz- oder Massenverwässerungsgefahr.")
+                hammer_triggers.append(f"🚨 **Akuter Cash-Burn:** Runway beträgt weniger als 12 Monate ({runway_text})! Insolvenzgefahr.")
+            if op_cashflow < 0 and total_cash <= 0:
+                hammer_triggers.append("🚨 **Akuter Cash-Burn:** Keinerlei Cash-Polster vorhanden.")
             if dilution_risk in ["Hoch (Wandelanleihen/Keine Belege)", "Akut (Ständige Kapitalerhöhung)"]:
                 hammer_triggers.append("🚨 **Verwässerungs-Falle:** Hohes Risiko von Wandelanleihen oder aggressiven Kapitalerhöhungen.")
             if story_gap in ["Hohe Diskrepanz / Hype", "Keine Belege / Transparenzwarnung"]:
@@ -119,16 +124,14 @@ if scan_btn or ticker_input:
                 hammer_triggers.append("🔍 **Nicht ausreichend verstanden:** Die Datenlage ist zu unvollständig für ein solides Urteil.")
 
             # === SCORE BERECHNUNG ===
-            # Oma-Substanz Score
             oma_score = 50
             if net_cash > 0: oma_score += 25
-            else: oma_score -= 20
-            if pb_ratio and pb_ratio < 3.0: oma_score += 15
+            else: oma_score -= 10
+            if pb_ratio and pb_ratio < 5.0: oma_score += 15
             if payout_ratio > 0 and payout_ratio <= 70: oma_score += 10
-            elif payout_ratio > 90: oma_score -= 20
+            elif payout_ratio > 90: oma_score -= 15
             oma_score = max(0, min(100, oma_score))
 
-            # Kurz-Zukunft Score
             kurz_score = 50
             if rev_growth > 10: kurz_score += 20
             elif rev_growth < 0: kurz_score -= 20
@@ -136,7 +139,7 @@ if scan_btn or ticker_input:
             if inst_ownership > 50: kurz_score += 15
             kurz_score = max(0, min(100, kurz_score))
 
-            # DIAMANTEN-STATUS
+            # STATUS
             if hammer_triggers:
                 status_class = "🔨 OMA-HAMMER"
                 status_desc = "Kritische Warnsignale aktiv. Kein Investment ohne vollständige Klärung der Belege!"
@@ -158,9 +161,8 @@ if scan_btn or ticker_input:
             
             # Anti-FOMO Schild
             st.markdown(f"""
-            <div class="fomo-shield">
+            <div class="fomo-shield" style="padding:15px; border-radius:8px;">
               <strong>🛡️ OmaKurz™ Anti-FOMO Schild:</strong><br>
-              Lass dich nicht von Narrativen leiten. 
               <strong>Marktkapitalisierung:</strong> {market_cap / 1e9:.2f} Mrd. {currency} | 
               <strong>Enterprise Value (EV):</strong> {enterprise_value / 1e9:.2f} Mrd. {currency} | 
               <strong>Daten-Vertrauen:</strong> {data_confidence} %
@@ -196,23 +198,14 @@ if scan_btn or ticker_input:
 
             st.divider()
 
-            # TAB-STRUKTUR FÜR DETAILS
-            tab1, tab2, tab3, tab4 = st.columns(4)
-
-            # TAB 1: SUBSTANZ & FINANZ-DETEKTIV
+            # DETAILS
             st.subheader("🕵️‍♂️ 1. Finanzierungs-Detektiv & Substanz")
             f1, f2, f3, f4 = st.columns(4)
             f1.metric("Netto-Cash", f"{net_cash / 1e9:.2f} Mrd. {currency}", delta="Positiv" if net_cash > 0 else "Verschuldet")
             f2.metric("Operativer Cashflow", f"{op_cashflow / 1e9:.2f} Mrd. {currency}")
-            
-            if op_cashflow > 0:
-                f3.metric("Finanzierung", "✅ Aus Betrieb")
-            else:
-                f3.metric("Finanzierung", "🚨 Cash Burn")
-                
-            f4.metric("Runway (Reichweite)", f"{runway_months} Monate" if runway_months else "Unbegrenzt (Cashflow +)")
+            f3.metric("Finanzierung", "✅ Aus Betrieb" if op_cashflow > 0 else "🚨 Cash Burn")
+            f4.metric("Runway (Reichweite)", runway_text)
 
-            # TAB 2: ACCELERATION & VALUATION
             st.subheader("⚖️ 2. Acceleration, Penny-Stock-Check & Valuation")
             v1, v2, v3, v4 = st.columns(4)
             v1.metric("KGV", f"{pe_ratio:.1f}" if pe_ratio else "k.A.")
@@ -220,24 +213,21 @@ if scan_btn or ticker_input:
             v3.metric("Erlös-Verdopplung", f"~ {doubling_years} Jahre" if isinstance(doubling_years, (int, float)) else "Kein Wachstum")
             v4.metric("Aktienanzahl", f"{shares_outstanding / 1e6:.1f} Mio.")
 
-            # Reverse Valuation Denkmodell
             with st.expander("🔮 Reverse Valuation: Was ist im Preis eingepreist?"):
                 st.write(f"""
                 Um den aktuellen Aktienkurs von **{current_price} {currency}** zu rechtfertigen:
-                * Müsste das Unternehmen seinen Gewinnmarge-Standard von **{profit_margin:.1f} %** halten oder ausbauen.
+                * Müsste das Unternehmen seine Gewinnmarge von **{profit_margin:.1f} %** halten oder ausbauen.
                 * Muss das Wachstum von derzeit **{rev_growth:.1f} %** dauerhaft gehalten werden.
                 * Ist ein Enterprise Value von **{enterprise_value / 1e9:.2f} Mrd. {currency}** am Markt angesetzt.
                 """)
 
-            # TAB 3: STORY VS. REALITY & PIPELINE
             st.subheader("🧬 3. Pipeline, Story & Governance")
             p1, p2, p3 = st.columns(3)
             p1.metric("Pipeline-Status", pipeline_stage)
             p2.metric("Story vs. Reality", story_gap)
             p3.metric("Verwässerungs-Risiko", dilution_risk)
 
-            # TAB 4: ENTWICKLUNGSKORRIDOR
-            st.subheader("🔮 4. Entwicklungskorridor (Szenarien ohne Kristallkugel)")
+            st.subheader("🔮 4. Entwicklungskorridor (Szenarien)")
             c1, c2, c3 = st.columns(3)
             c1.warning(f"**Konservativ:** Flaches Wachstum, Margendruck. Fokus auf Netto-Cash ({net_cash / 1e9:.1f} Mrd. {currency}).")
             c2.info(f"**Basis-Pfad:** Fortführung des aktuellen Trends ({rev_growth:.1f} % Wachstum, {profit_margin:.1f} % Marge).")
@@ -247,5 +237,5 @@ if scan_btn or ticker_input:
             st.error(f"Fehler beim Abrufen oder Verarbeiten der Daten: {e}")
 
 st.divider()
-st.caption("OmaKurz™ Scanner v1.0 · Anti-FOMO Analyse-System · Keine Anlageberatung")
+st.caption("OmaKurz™ Scanner v1.1 · Anti-FOMO Analyse-System · Keine Anlageberatung")
             
