@@ -4,15 +4,15 @@ import pandas as pd
 import numpy as np
 
 st.set_page_config(
-    page_title="OmaKurz™ Scanner v2.2.8",
+    page_title="OmaKurz™ Scanner v2.2.9",
     page_icon="🧭",
     layout="centered"
 )
 
-st.title("🧭 OMAKURZ™ Scanner v2.2.8")
+st.title("🧭 OMAKURZ™ Scanner v2.2.9")
 st.caption(
     "Financing Detective • Dilution Delta • Global FX & Scale Engine • "
-    "Material-Hierarchie & Beate-Sandler-Whitepaper"
+    "Erweitertes Familien-Whitepaper & Glossar"
 )
 
 col_t1, col_t2 = st.columns([2, 1])
@@ -148,7 +148,7 @@ def growth_comparison(start, end):
 # ENGINE
 # ============================================================
 
-if st.button("⚡ OmaKurz v2.2.8 starten"):
+if st.button("⚡ OmaKurz v2.2.9 starten"):
     try:
         stock = yf.Ticker(ticker_symbol)
         info = stock.info
@@ -210,7 +210,6 @@ if st.button("⚡ OmaKurz v2.2.8 starten"):
         if has_capex: evidence_score += 5
         evidence_score = min(evidence_score, 100)
 
-        # 👑 HIER IST DER FIRMENNAME WIEDER SAUBER PLAZIERT!
         st.markdown(f"## 🏢 {company_name}")
         st.caption(f"Ticker: {ticker_symbol} | Sektor: {sector} | Heimatwährung: {currency}")
 
@@ -241,13 +240,13 @@ if st.button("⚡ OmaKurz v2.2.8 starten"):
         st.markdown("### ⚡ True Delta Acceleration (in Mrd. €)")
         if len(revenue_series) >= 4:
             history_text = " → ".join(format_financials_in_eur(v, fx_rate) for v in revenue_series.values)
-            st.write(f"**Umsatz:** {history_text}")
+            st.write(f"**Umsatz (historische Jahreswerte):** {history_text}")
             deltas = acceleration["deltas"]
             delta_text = " → ".join(format_financials_in_eur(v, fx_rate) for v in deltas)
-            st.write(f"**Jährliche Zuwächse:** {delta_text}")
-            st.write(f"**Dynamik:** {rev_accel_label}")
+            st.write(f"**Jährliche Zuwächse (Schritte von Jahr zu Jahr):** {delta_text}")
+            st.write(f"**Dynamik-Trend:** {rev_accel_label}")
         else:
-            st.warning("For eine belastbare Beschleunigungsanalyse liegen zu wenige historische Umsatzdaten vor.")
+            st.warning("Für eine belastbare Beschleunigungsanalyse liegen zu wenige historische Umsatzdaten vor.")
 
         fcf_label = "⚪ Nicht ausreichend"
         fcf_current = fcf_series.iloc[-1] / 1e9 if len(fcf_series) > 0 else np.nan
@@ -300,7 +299,7 @@ if st.button("⚡ OmaKurz v2.2.8 starten"):
             else: st.success(f"🟢 Rechnerische Cash-Runway ca. {runway_years:.1f} Jahre.")
 
         # ====================================================
-        # 👑 OMA-KERN-URTEIL & MATERIAL-HIERARCHIE (WHITEPAPER)
+        # OMA-KERN-URTEIL & MATERIAL-HIERARCHIE
         # ====================================================
         st.markdown("### 🧓 OmaKurz-Kern-Urteil & Material-Hierarchie")
 
@@ -344,19 +343,38 @@ if st.button("⚡ OmaKurz v2.2.8 starten"):
         else:
             st.warning("Aktueller Kurs oder globaler Wechselkurs konnte nicht ermittelt werden.")
 
-        # Whitepaper-Erklärungsbox für die Familie
+        # ====================================================
+        # ERWEITERTES WHITEPAPER-GLOSSAR FÜR DEN FAMILIENRAT
+        # ====================================================
         with st.expander("📖 Whitepaper-Glossar für den Familienrat (Klick zum Öffnen)"):
             st.markdown("""
-            **Wie liest man den OmaKurz™ Report?**
-            * **👑 Kronjuwel / Diamant:** Die absolute Königsklasse – sprudelt massig Free Cash Flow und hohe Margen. Sofort kaufbereit.
-            * **🛡️ Platin-Anker:** Felsenfest, krisensicher und verlässlich. Unser stabiler Rückhalt im Portfolio.
-            * **⚡ Kupfer-Schmiede:** Dynamisch, leitet Energie und wächst stark, wird im operativen Prozess weiter veredelt.
-            * **🪨 Rohstein (Findling):** Rohmaterial. Zeigt Potenzial, muss aber noch geschliffen werden (höhere Aufmerksamkeit nötig).
-            * **🎯 Beate-Sandler-Ziel:** Gibt exakt vor, wie viele Anteile wir brauchen, um unsere feste Zielgröße (€) zu erreichen – ganz unabhängig von der Landeswährung!
+            **Wie liest man den OmaKurz™ Report? (Erklärung für alle Einsteiger)**
+
+            * **👑 Material-Hierarchie (Die Anlageklassen):**
+              * **👑 Kronjuwel / Diamant:** Die absolute Königsklasse – sprudelt massig Free Cash Flow und hohe Margen. Sofort kaufbereit.
+              * **🛡️ Platin-Anker:** Felsenfest, krisensicher und verlässlich. Unser stabiler Rückhalt im Portfolio.
+              * **⚡ Kupfer-Schmiede:** Dynamisch, leitet Energie und wächst stark, wird im operativen Prozess weiter veredelt.
+              * **🪨 Rohstein (Findling):** Rohmaterial. Zeigt Potenzial, muss aber noch geschliffen werden (höhere Aufmerksamkeit nötig).
+
+            * **⚡ True Delta Acceleration (Die Beschleunigungs-Engine):**
+              * **Umsatz (historische Jahreswerte):** Zeigt die chronologische Kette der Jahresumsätze (von links nach rechts über die letzten Jahre).
+              * **Jährliche Zuwächse:** Zeigt die *absoluten Sprünge* von einem Jahr zum nächsten (plus oder minus). 
+              * **Dynamik-Trend (Punkt-Farbe):** Misst, ob das Wachstumtempo von Jahr zu Jahr schneller wird (🟢 beschleunigend) oder sich verlangsamt/rückläufig ist (🔴 rot). *Wichtig:* Ein roter Punkt bei reifen Riesen ist kein Fehler, sondern oft das Zeichen für ein stabiles, gesundes und verlässliches Reifegeschäft ohne Hype!
+
+            * **🕵️ Capital & Dilution Detective (Verwässerungs-Check):**
+              * Vergleicht, wie sich die **Aktienanzahl** über die Jahre entwickelt hat im Verhältnis zum Umsatzwachstum. 
+              * 🟢 = Aktienanzahl stabil oder schrumpft (Super für Aktionäre!). 
+              * 🔴 = Aktienanzahl wächst stark (Frisches Kapital wurde über neue Aktien beschafft, was bestehende Anteile verwässert).
+
+            * **💰 Finanzierungs-Detektiv & Cash-Runway:**
+              * **Cash-Runway:** Zeigt bei Verlust- oder Biotech-Unternehmen (wie jungen Rohsteinen), wie viele Jahre das vorhandene Geld (Cash) noch reicht, bevor neues Kapital her muss. Alles unter 2 Jahren ist ein rotes Warnsignal!
+
+            * **🎯 Beate-Sandler-Ziel:** 
+              * Gibt exakt vor, wie viele Anteile wir brauchen, um unsere feste Zielgröße (z.B. 1.000 €) unabhängig von der Landeswährung zu erreichen.
             """)
 
-        st.markdown(f"💬 *„Jetzt steht der Name wieder dick und fett oben, mein Junge! So weiß jeder im Familienrat sofort, welches Schwergewicht gerade analysiert wird.“*")
+        st.markdown(f"💬 *„Jetzt ist das Glossar komplett glattgezogen, mein Junge! Da blickt jetzt wirklich jeder im Familienrat sofort durch.“*")
 
     except Exception as e:
-        st.error(f"Fehler bei der v2.2.8 Execution: {e}")
-        
+        st.error(f"Fehler bei der v2.2.9 Execution: {e}")
+    
