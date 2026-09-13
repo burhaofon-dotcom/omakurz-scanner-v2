@@ -8,14 +8,7 @@ import numpy as np
 
 
 # ============================================================
-# OmaKurz™ Scanner v2.3 (Vollständige Version mit Ray-Logik)
-# ============================================================
-# Grundprinzip:
-#   🏛️ OMA       = Substanz
-#   🚀 KURZ      = Zukunft
-#   ⚡ DYNAMIK   = Beschleunigung / Verlangsamung
-#   💰 FINANZ    = Kapitalbedarf / Finanzierung
-#   🔍 EVIDENZ   = Datenqualität / Belegstärke
+# OmaKurz™ Scanner v2.3 (Hotfix gegen NoneType-Fehler)
 # ============================================================
 
 st.set_page_config(
@@ -36,7 +29,7 @@ st.markdown(
 
 
 # ============================================================
-# HILFSFUNKTIONEN & DATENBEREINIGUNG
+# HILFSFUNKTIONEN & SICHERE DATENBEREINIGUNG
 # ============================================================
 
 def safe_float(value) -> Optional[float]:
@@ -55,9 +48,21 @@ def safe_float(value) -> Optional[float]:
         return None
 
 
-def clean_series(series: Optional[pd.Series]) -> pd.Series:
+def clean_series(series) -> pd.Series:
+    """
+    Absolut sichere Bereinigung, fängt None, DataFrames und leere Objekte ab.
+    """
     if series is None:
         return pd.Series(dtype=float)
+    if isinstance(series, pd.DataFrame):
+        if series.empty:
+            return pd.Series(dtype=float)
+        series = series.iloc[:, 0]
+    if not isinstance(series, pd.Series):
+        try:
+            series = pd.Series(series)
+        except Exception:
+            return pd.Series(dtype=float)
     try:
         result = pd.to_numeric(series, errors="coerce")
         result = result.dropna()
@@ -67,9 +72,12 @@ def clean_series(series: Optional[pd.Series]) -> pd.Series:
         return pd.Series(dtype=float)
 
 
-def find_row(df: Optional[pd.DataFrame], candidates) -> Optional[pd.Series]:
-    if df is None or df.empty:
-        return None
+def find_row(df: Optional[pd.DataFrame], candidates) -> pd.Series:
+    """
+    Sucht robust nach einer Finanzzeile und liefert IMMER eine Series (nie None).
+    """
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return pd.Series(dtype=float)
 
     normalized = {
         str(idx).strip().lower(): idx
@@ -80,16 +88,20 @@ def find_row(df: Optional[pd.DataFrame], candidates) -> Optional[pd.Series]:
     for candidate in candidates:
         key = candidate.strip().lower()
         if key in normalized:
-            return clean_series(df.loc[normalized[key]])
+            res = clean_series(df.loc[normalized[key]])
+            if not res.empty:
+                return res
 
     # 2. Teilstring-Suche
     for candidate in candidates:
         key = candidate.strip().lower()
         for normalized_key, original_key in normalized.items():
             if key in normalized_key:
-                return clean_series(df.loc[original_key])
+                res = clean_series(df.loc[original_key])
+                if not res.empty:
+                    return res
 
-    return None
+    return pd.Series(dtype=float)
 
 
 def percent_change(old, new) -> Optional[float]:
@@ -125,7 +137,7 @@ def get_global_fx_rate(currency: str) -> float:
 
 
 # ============================================================
-# ANALYSE-MODULE (RAY-LOGIK)
+# ANALYSE-MODULE
 # ============================================================
 
 def classify_acceleration(series: pd.Series) -> dict:
@@ -217,7 +229,7 @@ def calculate_fcf(ocf_series: pd.Series, capex_series: pd.Series) -> pd.Series:
         o = safe_float(ocf.loc[date])
         c = safe_float(capex_series.loc[date])
         if o is not None and c is not None:
-            fcf_values[date] = o + c # CapEx ist in yfinance oft negativ
+            fcf_values[date] = o + c 
     return pd.Series(fcf_values).sort_index()
 
 
@@ -228,6 +240,9 @@ def classify_fcf_dynamics(fcf_series: pd.Series) -> dict:
         return result
     
     latest, prev = safe_float(s.iloc[-1]), safe_float(s.iloc[-2])
+    if latest is None or prev is None:
+        return result
+
     if latest > 0 and prev > 0 and latest > prev:
         result["status"] = "🟢 FCF verbessert sich"
         result["score"] = 85
@@ -309,7 +324,7 @@ if st.button("⚡ OmaKurz v2.3 starten"):
     with st.spinner("Analysiere Finanzdaten..."):
         try:
             stock = yf.Ticker(ticker_input)
-            info = stock.info
+            info = stock.info if isinstance(stock.info, dict) else {}
 
             company_name = info.get("longName", ticker_input)
             sector = info.get("sector", "Unbekannt")
@@ -395,6 +410,5 @@ with st.expander("📖 OmaKurz™ Glossar & Erklärungen"):
     * **Margen-Trend:** Überwacht die Entwicklung der Nettomarge.
     * **FCF-Dynamik:** Analysiert die Entwicklung des Free Cashflows (Operativer Cashflow minus Investitionen).
     * **Kapital- & Aktienentwicklung:** Zeigt Verwässerung oder Aktienrückkäufe an.
-    * **Evidenz-Grad:** Bewertft die Datenvollständigkeit aus den Finanzberichten.
+    * **Evidenz-Grad:** Bewertet die Datenvollständigkeit aus den Finanzberichten.
     """)
-    
