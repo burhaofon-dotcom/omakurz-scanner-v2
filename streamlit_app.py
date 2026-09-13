@@ -1,277 +1,121 @@
 import streamlit as st
-import yfinance as yf
+import yfinance as ticker_data
+import numpy as np
 
-st.set_page_config(
-    page_title="OmaKurz Scanner v1.3",
-    page_icon="🧭",
-    layout="wide"
-)
+# Page Config
+st.set_page_config(page_title="OmaKurz™ Scanner v1.5 Forensik", page_icon="🧭", layout="centered")
 
-# --- STYLING ---
-st.markdown("""
-<style>
-.main-header { text-align: center; padding: 10px 0; }
-.main-header .compass { font-size: 64px; }
-.main-header h1 { font-family: 'Georgia', serif; font-size: 36px; margin: 0; color: #1e293b; }
-.main-header p { color: #64748b; font-size: 16px; margin-top: 5px; }
-.quote { font-family: 'Georgia', serif; font-style: italic; font-size: 16px; color: #d97706; text-align: center; margin-bottom: 25px; }
-.hammer-box { background-color: #fef2f2; border-left: 6px solid #dc2626; padding: 15px; border-radius: 4px; margin: 10px 0; }
-.diamond-box { background-color: #f0fdf4; border-left: 6px solid #16a34a; padding: 15px; border-radius: 4px; margin: 10px 0; }
-.fomo-shield { background-color: #fffbeb; color: #1e293b; border: 1px solid #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-.val-tag { font-weight: bold; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 8px; }
-</style>
-""", unsafe_allow_html=True)
+st.title("🧭 OMAKURZ™ SCANNER v1.5")
+st.caption("Forensik Edition — Anti-FOMO & Beate-Sander-Strategie")
 
-# --- HEADER ---
-st.markdown("""
-<div class="main-header">
-  <div class="compass">🧭</div>
-  <h1>OMAKURZ™ SCANNER v1.3</h1>
-  <p>Analyse-Kompass & Anti-FOMO Forensik</p>
-</div>
-<div class="quote">„Was du nicht verstehst oder was nicht belegt ist, kaufst du nicht.“</div>
-""", unsafe_allow_html=True)
+# Ticker Input
+ticker_symbol = st.text_input("Börsenkürzel / Ticker eingeben (z.B. OSPN, ALNY, RTO.L):", "OSPN").upper()
 
-# --- SIDEBAR: FORENSIK & STORY CHECK ---
-st.sidebar.header("🔬 Forensik-Labor (Manuelle Belege)")
-st.sidebar.info("Manuelle Risikoregler für Wandelanleihen, Story & Belege.")
+if st.button("⚡ Forensik-Analyse starten"):
+    try:
+        stock = ticker_data.Ticker(ticker_symbol)
+        info = stock.info
+        
+        # Data Extraction
+        company_name = info.get("longName", ticker_symbol)
+        pe_ratio = info.get("trailingPE", None)
+        rev_growth = info.get("revenueGrowth", 0) * 100 if info.get("revenueGrowth") else 0
+        profit_margin = info.get("profitMargins", 0) * 100 if info.get("profitMargins") else 0
+        current_price = info.get("currentPrice", info.get("regularMarketPrice", 0))
+        op_cashflow = info.get("operatingCashflow", 0)
+        total_debt = info.get("totalDebt", 0)
+        total_cash = info.get("totalCash", 0)
+        net_cash = total_cash - total_debt
+        shares_outstanding = info.get("sharesOutstanding", 1)
 
-dilution_risk = st.sidebar.select_slider(
-    "💰 Verwässerungs- & Wandelanleihen-Risiko",
-    options=["Kein / Sehr niedrig", "Moderat (Optionen/Gering)", "Hoch (Wandelanleihen/Keine Belege)", "Akut (Ständige Kapitalerhöhung)"],
-    value="Kein / Sehr niedrig"
-)
+        st.header(f"Ergebnisse für {company_name}")
 
-story_gap = st.sidebar.select_slider(
-    "🧠 Story vs. Reality Gap",
-    options=["Faktenbelegt & Transparent", "Leichte Versprechen ohne Beleg", "Hohe Diskrepanz / Hype", "Keine Belege / Transparenzwarnung"],
-    value="Faktenbelegt & Transparent"
-)
+        # 1. FORENSIK: ACCELERATION SCORE (Ray's Feature)
+        # Bsp-Logik für Dynamik-Beschleunigung aus historischen Daten
+        hist_acceleration_score = "Stabil"
+        if rev_growth > 20:
+            hist_acceleration_score = "🚀 Hohe Beschleunigung"
+        elif rev_growth > 5:
+            hist_acceleration_score = "📈 Solides Basis-Wachstum"
+        else:
+            hist_acceleration_score = "⚠️ Träge / Stagnierend"
 
-pipeline_stage = st.sidebar.selectbox(
-    "🧬 Pipeline / Tech-Entwicklung",
-    ["Keine Pipeline (Klassisches Business)", "Frühe Phase / Forschung (High Risk)", "Späte Phase / Meilensteine nah", "Kommerzialisiert & Skalierend"]
-)
+        # 2. VETO-SYSTEM & DIAMANT-KLASSIFIZIERUNG (Hardened Diamond Logic)
+        has_veto = False
+        veto_reasons = []
 
-data_confidence = st.sidebar.slider("🔍 Daten-Vollständigkeit & Quellenqualität (%)", 10, 100, 100)
+        if net_cash < 0 and op_cashflow <= 0:
+            has_veto = True
+            veto_reasons.append("Negativer Cashflow bei zeitgleicher Verschuldung")
+        
+        if pe_ratio and pe_ratio > 80:
+            has_veto = True
+            veto_reasons.append("Extrem überhöhte Bewertung (KGV > 80)")
 
-# --- MAIN INPUT ---
-col_in1, col_in2 = st.columns([3, 1])
-with col_in1:
-    ticker_input = st.text_input("Börsenkürzel / Ticker eingeben (z.B. AAPL, BNTX, 3696.HK, NKLA) ...", key="ticker")
-with col_in2:
-    st.write(" ")
-    st.write(" ")
-    scan_btn = st.button("🧭 Analyse starten", use_container_width=True)
+        # Status Bestimmung
+        if not has_veto and op_cashflow > 0 and (pe_ratio and pe_ratio < 25):
+            status = "💎 Kronjuwel / Geschliffener Diamant"
+            status_color = "success"
+        elif not has_veto and rev_growth > 15:
+            status = "💠 Rohdiamant mit Wachstumspotenzial"
+            status_color = "info"
+        else:
+            status = "⚠️ Spekulativ / Substanz-Prüfung erforderlich"
+            status_color = "warning"
 
-if scan_btn or ticker_input:
-    if not ticker_input:
-        st.warning("Bitte gib ein gültiges Ticker-Symbol ein.")
-    else:
-        try:
-            stock = yf.Ticker(ticker_input.strip().upper())
-            info = stock.info
+        # Display Status
+        if status_color == "success":
+            st.success(f"**STATUS:** {status}")
+        elif status_color == "info":
+            st.info(f"**STATUS:** {status}")
+        else:
+            st.warning(f"**STATUS:** {status}")
 
-            # === DATEN-EXTRAKTION ===
-            company_name = info.get("longName", ticker_input.upper())
-            sector = info.get("sector", "Unbekannt")
-            currency = info.get("currency", "USD")
-            market_cap = info.get("marketCap", 0) or 0
-            enterprise_value = info.get("enterpriseValue", 0) or 0
-            shares_outstanding = info.get("sharesOutstanding", 0) or 0
-            current_price = info.get("currentPrice", 0) or info.get("regularMarketPrice", 0) or 0
+        if has_veto:
+            st.error(f"⛔ **Veto-Sperre aktiv:** Kein Kronjuwel-Status möglich wegen: {', '.join(veto_reasons)}")
 
-            # 1. Oma - Substanz
-            total_cash = info.get("totalCash", 0) or 0
-            total_debt = info.get("totalDebt", 0) or 0
-            net_cash = total_cash - total_debt
-            pe_ratio = info.get("trailingPE", None) or info.get("forwardPE", None)
-            pb_ratio = info.get("priceToBook", None)
-            payout_ratio = (info.get("payoutRatio", 0) or 0) * 100
-            raw_div = info.get("dividendYield", 0) or 0
-            div_yield = raw_div if raw_div > 0.15 else raw_div * 100
+        # 3. NIKOLA / THERANOS STRESSTEST-WARNUNG
+        if op_cashflow <= 0 and rev_growth > 30:
+            st.error("🚨 **STRESSTEST-ALARM (Nikola/Theranos-Muster):** Hohes narratives Wachstum bei negativem operativen Cashflow! Hohes Risiko von Kapitalverwässerung.")
 
-            # 2. Kurz - Zukunft & Cashflow
-            op_cashflow = info.get("operatingCashflow", 0) or 0
-            free_cashflow = info.get("freeCashflow", 0) or 0
-            profit_margin = (info.get("profitMargins", 0) or 0) * 100
-            rev_growth = (info.get("revenueGrowth", 0) or 0) * 100
-            inst_ownership = (info.get("heldPercentInstitutions", 0) or 0) * 100
+        # 4. FAIR-VALUE-KORRIDOR (Ray's Feature)
+        st.subheader("⚖️ Fair-Value-Korridor")
+        if pe_ratio:
+            fair_low = current_price * (15 / pe_ratio) if pe_ratio > 0 else current_price * 0.7
+            fair_high = current_price * (22 / pe_ratio) if pe_ratio > 0 else current_price * 1.1
+            st.write(f"• **Aktueller Kurs:** {current_price:.2f} USD (KGV: {pe_ratio:.1f})")
+            st.write(f"• **OmaKurz Korridor:** {min(fair_low, fair_high):.2f} USD – {max(fair_low, fair_high):.2f} USD")
+        else:
+            st.write("Keine KGV-Basis für Korridor vorhanden.")
 
-            # Intelligente Runway-Logik
-            runway_text = "Unbegrenzt (Cashflow +)"
-            runway_months = None
-            if op_cashflow < 0:
-                if total_cash > 0:
-                    annual_burn = abs(op_cashflow)
-                    runway_months = round((total_cash / annual_burn) * 12, 1)
-                    runway_text = f"{runway_months} Monate"
-                else:
-                    runway_text = "🚨 Akut / Kein Cash-Polster"
-
-            doubling_years = round(72 / rev_growth, 1) if rev_growth > 0 else "N/A"
-
-            # === BEWERTUNGS-EXPRESS-CHECK (In einem Satz) ===
-            if op_cashflow < 0:
-                val_sentence = "🔴 **Bewertung:** Spekulativ überhitzt oder defizitär – Aktie verbrennt Geld ohne nachhaltigen Ertrag."
-            elif pe_ratio is None:
-                val_sentence = "🟡 **Bewertung:** Nicht klassisch bewertbar – Keine nachhaltigen Gewinne ausgewiesen."
-            elif pe_ratio < 18 and rev_growth > 5:
-                val_sentence = f"🟢 **Bewertung:** Attraktiv / Günstig – KGV von {pe_ratio:.1f} ist durch solides Wachstum gut abgesichert."
-            elif pe_ratio <= 35 and profit_margin > 18:
-                val_sentence = f"🔵 **Bewertung:** Fair bewertet – Das KGV von {pe_ratio:.1f} spiegelt hohe Qualität und starke Margen wider."
-            elif pe_ratio > 35 or (pb_ratio and pb_ratio > 15 and rev_growth < 15):
-                val_sentence = f"🟡 **Bewertung:** Ambitioniert / Sportlich – KGV von {pe_ratio:.1f} erfordert fehlerfreies Zukunfts-Wachstum."
+        # 5. TARGET 1.000 € BEATE SANDER INTEGRATION (Burhan's Feature)
+        st.markdown("---")
+        st.subheader("🎯 Beate Sander 1.000 € Zielmarken-Rechner")
+        
+        ziel_summe = 1000.0
+        # Rechnerische Stückzahl
+        stueckzahl = ziel_summe / current_price if current_price > 0 else 0
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Tranchen-Strategie:**")
+            if "Kronjuwel" in status:
+                st.write("• **Start-Tranche:** 500 € (50% Direkt-Einstieg)")
+                st.write("• **Rest:** 2 Tranchen à 250 € bei Rücksetzern")
             else:
-                val_sentence = f"🔵 **Bewertung:** Angemessen bewertet – KGV von {pe_ratio:.1f} liegt im marktüblichen Rahmen."
+                st.write("• **Start-Tranche:** 250 € (25% Ansparen)")
+                st.write("• **Rest:** 3 Tranchen à 250 € nach Meilensteinen")
+            st.write(f"• **Ziel-Anzahl:** ca. **{stueckzahl:.2f} Aktien**")
 
-            # === OMA-HAMMER (Knockout-Risiken) ===
-            hammer_triggers = []
-            if op_cashflow < 0 and (runway_months is not None and runway_months < 12):
-                hammer_triggers.append(f"🚨 **Akuter Cash-Burn:** Runway beträgt weniger als 12 Monate ({runway_text})! Insolvenzgefahr.")
-            if op_cashflow < 0 and total_cash <= 0:
-                hammer_triggers.append("🚨 **Akuter Cash-Burn:** Keinerlei Cash-Polster vorhanden.")
-            if dilution_risk in ["Hoch (Wandelanleihen/Keine Belege)", "Akut (Ständige Kapitalerhöhung)"]:
-                hammer_triggers.append("🚨 **Verwässerungs-Falle:** Hohes Risiko von Wandelanleihen oder aggressiven Kapitalerhöhungen.")
-            if story_gap in ["Hohe Diskrepanz / Hype", "Keine Belege / Transparenzwarnung"]:
-                hammer_triggers.append("🚨 **Story-Reality Gap:** Das Management verspricht mehr, als Bilanzen und Fakten belegen können.")
-            if data_confidence < 40:
-                hammer_triggers.append("🔍 **Nicht ausreichend verstanden:** Die Datenlage ist zu unvollständig für ein solides Urteil.")
+        with col2:
+            st.markdown("**50 € Sparplan-Dauer:**")
+            sparrate = 50.0
+            monate = ziel_summe / sparrate
+            st.write(f"• **Laufzeit:** {monate:.0f} Monate ({monate/12:.1f} Jahre)")
+            st.write("• **Effekt:** Optimaler Cost-Average-Effekt")
 
-            # === SCORE BERECHNUNG v1.3 ===
-            oma_score = 50
+        st.caption("OmaKurz™ Scanner v1.5 Forensik • Keine Anlageberatung")
 
-            if net_cash > 0:
-                oma_score += 20
-            elif op_cashflow > 10e9:
-                oma_score += 20
-            elif op_cashflow > 0:
-                oma_score += 5
-
-            if profit_margin > 20:
-                oma_score += 15
-            elif profit_margin > 10:
-                oma_score += 10
-
-            if pb_ratio and pb_ratio < 5.0:
-                oma_score += 15
-            elif profit_margin > 20 and pb_ratio:
-                oma_score += 10
-
-            if payout_ratio > 0 and payout_ratio <= 75:
-                oma_score += 5
-
-            oma_score = max(0, min(100, oma_score))
-
-            kurz_score = 50
-            if rev_growth > 10: kurz_score += 20
-            elif rev_growth > 0: kurz_score += 10
-            elif rev_growth < -10: kurz_score -= 20
-
-            if profit_margin > 20: kurz_score += 15
-            if inst_ownership > 50: kurz_score += 15
-            kurz_score = max(0, min(100, kurz_score))
-
-            # STATUS-KLASSIFIZIERUNG
-            if hammer_triggers:
-                status_class = "🔨 OMA-HAMMER"
-                status_desc = "Kritische Warnsignale aktiv. Kein Investment ohne vollständige Klärung der Belege!"
-            elif oma_score >= 75 and kurz_score >= 75 and data_confidence >= 80:
-                status_class = "💎 Kronjuwel / Geschliffener Diamant"
-                status_desc = "Höchste Substanz, starker operativer Cashflow und exzellente Datenbelege."
-            elif oma_score >= 60 and kurz_score >= 60:
-                status_class = "💠 Rohdiamant"
-                status_desc = "Gute Substanz mit Potenzial. Einzelne Parameter noch zu beobachten."
-            elif oma_score >= 50:
-                status_class = "🪨 Rohstein"
-                status_desc = "Durchschnittliches Unternehmen oder Mischkonzern mit Einschränkungen."
-            else:
-                status_class = "⚠️ Spekulativer Fall"
-                status_desc = "Erhöhte Risiken in Bilanz oder Finanzierung."
-
-            # === AUSGABE HEADER ===
-            st.markdown(f"## Ergebnisse für **{company_name}** ({sector})")
+    except Exception as e:
+        st.error(f"Fehler bei der Forensik-Analyse: {e}")
             
-            # Anti-FOMO Schild
-            st.markdown(f"""
-            <div class="fomo-shield" style="padding:15px; border-radius:8px;">
-              <strong>🛡️ OmaKurz™ Anti-FOMO Schild:</strong><br>
-              <strong>Marktkapitalisierung:</strong> {market_cap / 1e9:.2f} Mrd. {currency} | 
-              <strong>Enterprise Value (EV):</strong> {enterprise_value / 1e9:.2f} Mrd. {currency} | 
-              <strong>Daten-Vertrauen:</strong> {data_confidence} %
-            </div>
-            """, unsafe_allow_html=True)
-
-            # STATUS & BEWERTUNGS-SATZ
-            if "OMA-HAMMER" in status_class:
-                st.markdown(f"""
-                <div class="hammer-box">
-                  <h3 style="margin:0; color:#dc2626;">🔨 STATUS: OMA-HAMMER AKTIV</h3>
-                  <p style="margin:5px 0 10px 0; color:#991b1b;">{status_desc}</p>
-                  <hr style="border:0; border-top:1px solid #fca5a5; margin:8px 0;">
-                  <p style="margin:0; font-size:15px;">{val_sentence}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                for ht in hammer_triggers:
-                    st.error(ht)
-            else:
-                st.markdown(f"""
-                <div class="diamond-box">
-                  <h3 style="margin:0; color:#16a34a;">STATUS: {status_class}</h3>
-                  <p style="margin:5px 0 10px 0; color:#166534;">{status_desc}</p>
-                  <hr style="border:0; border-top:1px solid #bbf7d0; margin:8px 0;">
-                  <p style="margin:0; font-size:15px; color:#14532d;">{val_sentence}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.divider()
-
-            # --- Säulen & Scores ---
-            s1, s2, s3, s4 = st.columns(4)
-            s1.metric("🏛️ Oma - Substanz", f"{oma_score} / 100")
-            s2.metric("🚀 Kurz - Zukunft", f"{kurz_score} / 100")
-            s3.metric("⚡ Dynamic / Growth", f"{rev_growth:.1f} % p.a.")
-            s4.metric("🔍 Belege & Transparenz", f"{data_confidence} %")
-
-            st.divider()
-
-            # DETAILS
-            st.subheader("🕵️‍♂️ 1. Finanzierungs-Detektiv & Substanz")
-            f1, f2, f3, f4 = st.columns(4)
-            f1.metric("Netto-Cash", f"{net_cash / 1e9:.2f} Mrd. {currency}", delta="Positiv" if net_cash > 0 else "Verschuldet / Buybacks")
-            f2.metric("Operativer Cashflow", f"{op_cashflow / 1e9:.2f} Mrd. {currency}")
-            f3.metric("Finanzierung", "✅ Aus Betrieb" if op_cashflow > 0 else "🚨 Cash Burn")
-            f4.metric("Runway (Reichweite)", runway_text)
-
-            st.subheader("⚖️ 2. Acceleration, Penny-Stock-Check & Valuation")
-            v1, v2, v3, v4 = st.columns(4)
-            v1.metric("KGV", f"{pe_ratio:.1f}" if pe_ratio else "k.A.")
-            v2.metric("KBV (Buchwert)", f"{pb_ratio:.2f}" if pb_ratio else "k.A.")
-            v3.metric("Erlös-Verdopplung", f"~ {doubling_years} Jahre" if isinstance(doubling_years, (int, float)) else "Kein Wachstum")
-            v4.metric("Aktienanzahl", f"{shares_outstanding / 1e6:.1f} Mio.")
-
-            with st.expander("🔮 Reverse Valuation: Was ist im Preis eingepreist?"):
-                st.write(f"""
-                Um den aktuellen Aktienkurs von **{current_price} {currency}** zu rechtfertigen:
-                * Müsste das Unternehmen seine Gewinnmarge von **{profit_margin:.1f} %** halten oder ausbauen.
-                * Muss das Wachstum von derzeit **{rev_growth:.1f} %** dauerhaft gehalten werden.
-                * Ist ein Enterprise Value von **{enterprise_value / 1e9:.2f} Mrd. {currency}** am Markt angesetzt.
-                """)
-
-            st.subheader("🧬 3. Pipeline, Story & Governance")
-            p1, p2, p3 = st.columns(3)
-            p1.metric("Pipeline-Status", pipeline_stage)
-            p2.metric("Story vs. Reality", story_gap)
-            p3.metric("Verwässerungs-Risiko", dilution_risk)
-
-            st.subheader("🔮 4. Entwicklungskorridor (Szenarien)")
-            c1, c2, c3 = st.columns(3)
-            c1.warning(f"**Konservativ:** Flaches Wachstum, Margendruck. Fokus auf Cashflow ({op_cashflow / 1e9:.1f} Mrd. {currency}).")
-            c2.info(f"**Basis-Pfad:** Fortführung des aktuellen Trends ({rev_growth:.1f} % Wachstum, {profit_margin:.1f} % Marge).")
-            c3.success(f"**Beschleunigt:** Kommerzialisierung gelingt, Erlöse verdoppeln sich alle {doubling_years} Jahre.")
-
-        except Exception as e:
-            st.error(f"Fehler beim Abrufen oder Verarbeiten der Daten: {e}")
-
-st.divider()
-st.caption("OmaKurz™ Scanner v1.3 · Anti-FOMO Analyse-System · Keine Anlageberatung")
