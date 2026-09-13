@@ -1,4 +1,3 @@
-
 import math
 from typing import Optional, Tuple
 
@@ -9,27 +8,8 @@ import numpy as np
 
 
 # ============================================================
-# OmaKurz™ Scanner v2.3
+# OmaKurz™ Scanner v2.3 (Fix für DataFrame-Index)
 # ============================================================
-# Grundprinzip:
-#
-#   🏛️ OMA       = Substanz
-#   🚀 KURZ       = Zukunft
-#   ⚡ DYNAMIK    = Beschleunigung / Verlangsamung
-#   💰 FINANZ     = Kapitalbedarf / Finanzierung
-#   🧬 PIPELINE   = Entwicklung / Zukunftsprogramme
-#   🔍 EVIDENZ    = Datenqualität / Belegstärke
-#   💎 QUALITÄT   = Qualitätsklasse
-#
-# Wichtig:
-# - Kein Buy/Hold/Sell
-# - Keine Kursziel-Magie
-# - Keine automatische Kaufempfehlung
-# - Qualität != Bewertung
-# - Datenlücken werden sichtbar gemacht
-# - Aussagen werden nicht stärker formuliert als die Datenlage
-# ============================================================
-
 
 st.set_page_config(
     page_title="OmaKurz™ Scanner v2.3",
@@ -37,55 +17,10 @@ st.set_page_config(
     layout="wide"
 )
 
-
-# ============================================================
-# STYLING
-# ============================================================
-
 st.markdown(
     """
     <style>
-    .main {
-        padding-top: 1rem;
-    }
-
-    .omakurz-card {
-        padding: 1rem 1.2rem;
-        border-radius: 14px;
-        border: 1px solid rgba(128,128,128,0.25);
-        margin-bottom: 1rem;
-    }
-
-    .small-muted {
-        color: #777;
-        font-size: 0.85rem;
-    }
-
-    .big-score {
-        font-size: 2.2rem;
-        font-weight: 700;
-    }
-
-    .warning-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(200,120,0,0.35);
-        background: rgba(255,180,0,0.08);
-    }
-
-    .danger-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(200,0,0,0.35);
-        background: rgba(255,0,0,0.06);
-    }
-
-    .success-box {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(0,140,70,0.35);
-        background: rgba(0,180,80,0.06);
-    }
+    .main { padding-top: 1rem; }
     </style>
     """,
     unsafe_allow_html=True
@@ -93,7 +28,7 @@ st.markdown(
 
 
 # ============================================================
-# HILFSFUNKTIONEN
+# HILFSFUNKTIONEN (Sicherer Index-Check)
 # ============================================================
 
 def safe_float(value) -> Optional[float]:
@@ -127,34 +62,34 @@ def clean_series(series: Optional[pd.Series]) -> pd.Series:
 def find_row(df: Optional[pd.DataFrame], candidates) -> Optional[pd.Series]:
     if df is None or df.empty:
         return None
-    normalized = {
-        str(idx).strip().lower(): idx
-        for idx in df.index
-    }
+    
+    # Schutz vor numerischen Indizes (verhindert den Crash aus dem Screenshot)
+    try:
+        normalized = {
+            str(idx).strip().lower(): idx
+            for idx in df.index
+            if not isinstance(idx, (int, float, np.number))
+        }
+    except Exception:
+        return None
+
+    if not normalized:
+        return None
+
+    # 1. Exakte Suche
     for candidate in candidates:
         key = candidate.strip().lower()
         if key in normalized:
             return clean_series(df.loc[normalized[key]])
+
+    # 2. Teilstring-Suche
     for candidate in candidates:
         key = candidate.strip().lower()
         for normalized_key, original_key in normalized.items():
             if key in normalized_key:
                 return clean_series(df.loc[original_key])
+                
     return None
-
-
-def latest_value(series: Optional[pd.Series]) -> Optional[float]:
-    s = clean_series(series)
-    if s.empty:
-        return None
-    return safe_float(s.iloc[-1])
-
-
-def first_value(series: Optional[pd.Series]) -> Optional[float]:
-    s = clean_series(series)
-    if s.empty:
-        return None
-    return safe_float(s.iloc[0])
 
 
 def percent_change(old, new) -> Optional[float]:
@@ -165,43 +100,13 @@ def percent_change(old, new) -> Optional[float]:
     return (new / old - 1.0) * 100.0
 
 
-def format_eur(value: Optional[float]) -> str:
-    if value is None:
-        return "n/a"
-    abs_value = abs(value)
-    if abs_value >= 1_000_000_000:
-        return f"{value / 1_000_000_000:,.2f} Mrd. €"
-    if abs_value >= 1_000_000:
-        return f"{value / 1_000_000:,.2f} Mio. €"
-    if abs_value >= 1_000:
-        return f"{value / 1_000:,.1f} Tsd. €"
-    return f"{value:,.2f} €"
-
-
-def format_number(value: Optional[float]) -> str:
-    if value is None:
-        return "n/a"
-    return f"{value:,.0f}".replace(",", ".")
-
-
-def format_percent(value: Optional[float]) -> str:
-    if value is None:
-        return "n/a"
-    return f"{value:+.1f} %"
-
-
-# ============================================================
-# FX
-# ============================================================
-
 @st.cache_data(ttl=3600)
 def get_global_fx_rate(currency: str) -> float:
     currency = (currency or "EUR").upper()
     if currency == "EUR":
         return 1.0
     if currency == "GBX":
-        gbp_rate = get_global_fx_rate("GBP")
-        return 0.01 * gbp_rate
+        return 0.01 * get_global_fx_rate("GBP")
     
     fallback = {
         "USD": 0.92, "GBP": 1.17, "JPY": 0.0061, "HKD": 0.118,
@@ -219,10 +124,6 @@ def get_global_fx_rate(currency: str) -> float:
     return fallback.get(currency, 1.0)
 
 
-# ============================================================
-# BESCHLEUNIGUNG & ANALYSEN
-# ============================================================
-
 def classify_acceleration(series: pd.Series) -> dict:
     s = clean_series(series)
     result = {
@@ -235,17 +136,9 @@ def classify_acceleration(series: pd.Series) -> dict:
 
     values = s.values.astype(float)
     deltas = np.diff(values)
-    growth_rates = []
-    for old, new in zip(values[:-1], values[1:]):
-        if old != 0:
-            growth_rates.append((new / old - 1.0) * 100.0)
-        else:
-            growth_rates.append(np.nan)
-
     delta_changes = np.diff(deltas)
-    latest_value_ = values[-1]
 
-    if latest_value_ < values[-2]:
+    if values[-1] < values[-2]:
         result["status"] = "🔴 Rückläufig"
         result["score"] = 20
         result["message"] = "Die jüngste Kennzahl liegt unter dem Vorjahreswert."
@@ -260,26 +153,18 @@ def classify_acceleration(series: pd.Series) -> dict:
     else:
         result["status"] = "➡️ Wachsend, nicht beschleunigend"
         result["score"] = 65
-        result["message"] = "Die Kennzahl wächst linear ohne zusätzliche Beschleunigung."
-
-    result["deltas"] = deltas.tolist()
-    result["delta_changes"] = delta_changes.tolist()
-    result["growth_rates"] = growth_rates
+        result["message"] = "Die Kennzahl wächst linear."
     return result
 
 
-def analyze_dilution(shares_series: pd.Series, revenue_series: pd.Series, fcf_series: pd.Series) -> dict:
+def analyze_dilution(shares_series: pd.Series, revenue_series: pd.Series) -> dict:
     shares = clean_series(shares_series)
     revenue = clean_series(revenue_series)
-    fcf = clean_series(fcf_series)
-
     result = {
         "status": "Nicht ausreichend Daten",
         "message": "Keine belastbare Aktienzahlhistorie.",
-        "share_change_pct": None, "revenue_change_pct": None,
-        "fcf_change_pct": None, "share_start": None, "share_end": None
+        "share_change_pct": None, "share_start": None, "share_end": None
     }
-
     if len(shares) < 2:
         return result
 
@@ -291,19 +176,16 @@ def analyze_dilution(shares_series: pd.Series, revenue_series: pd.Series, fcf_se
     result["share_end"] = share_end
     result["share_change_pct"] = share_change
 
-    if len(revenue) >= 2:
-        result["revenue_change_pct"] = percent_change(revenue.iloc[0], revenue.iloc[-1])
-
     if share_change is not None:
         if share_change > 5:
-            result["status"] = "🔴 Aktienzahl deutlich gestiegen (Verwässerungsdruck)"
-            result["message"] = "Die Anzahl der ausgegebenen Aktien ist über den Zeitraum spürbar gewachsen."
+            result["status"] = "🔴 Aktienzahl deutlich gestiegen (Verwässerung)"
+            result["message"] = "Die Anzahl der ausgegebenen Aktien ist gewachsen."
         elif share_change < -1:
             result["status"] = "🟢 Aktienzahl sinkt (Aktienrückkäufe)"
             result["message"] = "Das Unternehmen reduziert aktiv die Aktienanzahl."
         else:
             result["status"] = "➡️ Aktienzahl weitgehend stabil"
-            result["message"] = "Keine nennenswerte Veränderung der Aktienanzahl."
+            result["message"] = "Keine nennenswerte Veränderung."
     return result
 
 
@@ -315,7 +197,7 @@ st.markdown("## 🧭 OMAKURZ™ Scanner v2.3")
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    ticker_input = st.text_input("Börsenkürzel eingeben (z.B. 7203.T, WKL.AS, FDS):", "WKL.AS").upper().strip()
+    ticker_input = st.text_input("Börsenkürzel eingeben:", "WKL.AS").upper().strip()
 with col2:
     target_eur = st.number_input("Zielgröße (€)", min_value=100, max_value=50000, value=1000, step=100)
 
@@ -335,32 +217,26 @@ if st.button("⚡ OmaKurz v2.3 starten"):
         try: financials = stock.financials
         except Exception: financials = pd.DataFrame()
 
-        try: cashflow = stock.cashflow
-        except Exception: cashflow = pd.DataFrame()
-
         try: balance_sheet = stock.balance_sheet
         except Exception: balance_sheet = pd.DataFrame()
 
         rev_row = find_row(financials, ["Total Revenue", "Operating Revenue"])
-        shares_row = find_row(balance_sheet, ["Ordinary Shares Number", "Share Issued"])
+        shares_row = find_row(balance_sheet, ["Ordinary Shares Number", "Share Issued", "Common Stock"])
 
-        revenue_series = clean_series(financials.loc[rev_row] if rev_row is not None else None)
-        shares_series = clean_series(balance_sheet.loc[shares_row] if shares_row is not None else None)
+        revenue_series = clean_series(financials.loc[rev_row] if rev_row is not None and rev_row in financials.index else None)
+        shares_series = clean_series(balance_sheet.loc[shares_row] if shares_row is not None and shares_row in balance_sheet.index else None)
 
         st.markdown(f"### 🏢 {company_name}")
         st.caption(f"Ticker: {ticker_input} | Sektor: {sector} | Währung: {currency}")
 
-        # Beschleunigung ausgeben
         accel = classify_acceleration(revenue_series)
         st.markdown(f"**Umsatz-Beschleunigung:** {accel['status']}")
         st.info(accel['message'])
 
-        # Dilution ausgeben
-        dilution = analyze_dilution(shares_series, revenue_series, pd.Series(dtype=float))
+        dilution = analyze_dilution(shares_series, revenue_series)
         st.markdown(f"**Kapital- & Aktienentwicklung:** {dilution['status']}")
         st.write(dilution['message'])
 
-        # Beate-Sandler-Ziel
         if price_eur and price_eur > 0:
             shares_needed = target_eur / price_eur
             st.success(f"🎯 **Beate-Sandler-Ziel ({target_eur:,.0f} €):** Genau **{shares_needed:.1f} Aktien** benötigt (Aktueller Kurs: {price_eur:.2f} €).")
@@ -369,4 +245,4 @@ if st.button("⚡ OmaKurz v2.3 starten"):
 
     except Exception as e:
         st.error(f"Fehler bei der Ausführung: {e}")
-        
+    
