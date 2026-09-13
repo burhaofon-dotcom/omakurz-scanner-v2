@@ -1,14 +1,14 @@
 import streamlit as st
 import yfinance as ticker_data
 
-st.set_page_config(page_title="OmaKurz™ Scanner v1.5 Forensik Edition", page_icon="🧭", layout="centered")
+st.set_page_config(page_title="OmaKurz™ Scanner v1.6 Evidence Engine", page_icon="🧭", layout="centered")
 
-st.title("🧭 OMAKURZ™ SCANNER v1.5")
-st.caption("Forensik Edition — Anti-FOMO & Beate-Sander-Strategie (Mit OmaKurz-Kern-Urteil)")
+st.title("🧭 OMAKURZ™ SCANNER v1.6")
+st.caption("Evidence Engine Edition — Echte Punktezählung & Forensik-Logik")
 
 ticker_symbol = st.text_input("Börsenkürzel / Ticker eingeben (z.B. OSPN, ALNY, RTO.L):", "OSPN").upper()
 
-if st.button("⚡ Forensik-Analyse starten"):
+if st.button("⚡ Evidence-Analyse starten"):
     try:
         stock = ticker_data.Ticker(ticker_symbol)
         info = stock.info
@@ -30,11 +30,21 @@ if st.button("⚡ Forensik-Analyse starten"):
 
         st.header(f"Ergebnisse für {company_name} ({sector})")
 
-        # 🛡️ Anti-FOMO Schild & Dynamisches Daten-Vertrauen
-        data_confidence = "95 % (Yahoo Finance API Aktiv)" if pe_ratio else "70 % (Teilweise Lücken)"
-        st.info(f"🛡️ **OmaKurz™ Anti-FOMO Schild:** Marktkapitalisierung: {market_cap:.2f} Mrd. USD | EV: {enterprise_val:.2f} Mrd. USD | Daten-Vertrauen: {data_confidence}")
+        # -------------------------------------------------------------
+        # 1. ECHTER DATEN-VERTRAUENS-SCORE (Evidence Engine)
+        # -------------------------------------------------------------
+        confidence_points = 0
+        if net_cash != 0: confidence_points += 20
+        if op_cashflow != 0: confidence_points += 20
+        if rev_growth != 0: confidence_points += 20
+        if shares_outstanding > 0: confidence_points += 20
+        if pe_ratio and pe_ratio > 0: confidence_points += 20
 
-        # VETO & STATUS LOGIK
+        st.info(f"🛡️ **OmaKurz™ Evidence Schild:** Marktkapitalisierung: {market_cap:.2f} Mrd. USD | EV: {enterprise_val:.2f} Mrd. USD | **Daten-Transparenz: {confidence_points}/100**")
+
+        # -------------------------------------------------------------
+        # 2. VETO & STATUS LOGIK
+        # -------------------------------------------------------------
         has_veto = False
         veto_reasons = []
         if net_cash < 0 and op_cashflow <= 0:
@@ -57,28 +67,51 @@ if st.button("⚡ Forensik-Analyse starten"):
         if has_veto:
             st.error(f"⛔ **Veto-Sperre aktiv:** Kein Kronjuwel-Status wegen: {', '.join(veto_reasons)}")
 
-        # 🧠 OMAKURZ-KERN-URTEIL (Ray's geniale Idee integriert!)
+        # -------------------------------------------------------------
+        # 3. DYNAMISCHE OMA & KURZ SCORES (Echte mathematische Berechnung)
+        # -------------------------------------------------------------
+        # Oma-Score: Basiert auf Netto-Cash-Stärke & Operativem Cashflow
+        oma_score = 40
+        if net_cash > 0: oma_score += 30
+        if op_cashflow > 0.5: oma_score += 30
+        elif op_cashflow > 0: oma_score += 15
+        oma_score = min(oma_score, 100)
+
+        # Kurz-Score: Basiert auf Umsatzwachstum & Profitabilität
+        kurz_score = 30
+        if rev_growth > 10: kurz_score += 40
+        elif rev_growth > 0: kurz_score += 20
+        if profit_margin > 10: kurz_score += 30
+        elif profit_margin > 0: kurz_score += 15
+        kurz_score = min(kurz_score, 100)
+
+        # 🧠 OMAKURZ-KERN-URTEIL (Automatisiert aus Scores)
         st.markdown("### 🧓 OmaKurz-Kern-Urteil")
-        if "Kronjuwel" in status:
+        if oma_score >= 80 and kurz_score >= 60:
             st.markdown("💬 *„Die Firma liefert echten operativen Cashflow und starke Substanz. Hier bezahlt man nicht nur für Träume, sondern bekommt handfeste Fundamentaldaten auf den Tisch.“*")
-        elif "Rohdiamant" in status:
+        elif kurz_score >= 70 and oma_score < 60:
             st.markdown("💬 *„Das Wachstum ist stark, aber der Markt verlangt bereits Vorschusslorbeeren. Die Bilanz muss zeigen, dass die Dynamik in harten Cashflow überspringt.“*")
         else:
-            st.markdown("💬 *„Achtung: Die Story klingt groß, aber die Bilanzen oder Schulden zeigen, dass hier das Risiko hoch ist. Kein reines Substanz-Investment.“*")
+            st.markdown("💬 *„Achtung: Die Bilanzen oder Schulden zeigen, dass hier das Risiko erhöht ist. Kein reines Substanz-Investment.“*")
 
-        # METRIK-BLOCKS
+        # METRIK-BLOCKS MIT ECHTEN PUNKTEWERTEN
         st.markdown("---")
-        st.metric("🏛️ Oma - Substanz", "90 / 100" if net_cash > 0 else "50 / 100")
-        st.metric("🚀 Kurz - Zukunft", "85 / 100" if rev_growth > 10 else "50 / 100")
+        st.col1, st.col2, st.col3 = st.columns(3)
+        st.metric("🏛️ Oma - Substanz", f"{oma_score} / 100")
+        st.metric("🚀 Kurz - Zukunft", f"{kurz_score} / 100")
         st.metric("⚡ Dynamic / Growth", f"{rev_growth:.1f} % p.a.")
 
-        # DETEKTIV & SUBSTANZ
+        # -------------------------------------------------------------
+        # 4. FINANZIERUNGS-DETEKTIV & SUBSTANZ
+        # -------------------------------------------------------------
         st.subheader("🕵️ 1. Finanzierungs-Detektiv & Substanz")
         st.write(f"**Netto-Cash:** {net_cash:.2f} Mrd. USD " + ("(🟢 Positiv)" if net_cash > 0 else "(🔴 Negativ)"))
         st.write(f"**Operativer Cashflow:** {op_cashflow:.2f} Mrd. USD")
         st.write(f"**Finanzierung:** {'✅ Solide aus Betrieb' if op_cashflow > 0 else '⚠️ Externer Kapitalbedarf möglich'}")
 
-        # BEATE SANDER HYPOTHETISCHES RECHENBEISPIEL (Entschärft: Kein Kaufbefehl!)
+        # -------------------------------------------------------------
+        # 5. BEATE SANDER HYPOTHETISCHES RECHENBEISPIEL
+        # -------------------------------------------------------------
         st.markdown("---")
         st.subheader("🎯 Was würde ein 1.000-€-Beispiel bedeuten?")
         st.caption("Hypothetisches Rechenbeispiel zur Positionsgröße & Risiko-Abschätzung (Kein Kaufbefehl)")
@@ -99,8 +132,8 @@ if st.button("⚡ Forensik-Analyse starten"):
             st.write(f"• Bei **-40% Korrektur**: Portfolio-Wert 600 € (-400 €)")
             st.write(f"• Bei **-60% Krise**: Portfolio-Wert 400 € (-600 €)")
 
-        st.caption("OmaKurz™ Scanner v1.5 Forensik Edition • Anti-FOMO Analyse-System")
+        st.caption("OmaKurz™ Scanner v1.6 Evidence Engine • Anti-FOMO Analyse-System")
 
     except Exception as e:
-        st.error(f"Fehler bei der Forensik-Analyse: {e}")
+        st.error(f"Fehler bei der Evidence-Analyse: {e}")
         
