@@ -945,4 +945,4 @@ def has_meaningful_series(
 def safe_text(
     value,
     fallback: str = "n. a.",
-) -
+) 
