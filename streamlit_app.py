@@ -1,14 +1,14 @@
 import streamlit as st
 import yfinance as ticker_data
 
-st.set_page_config(page_title="OmaKurz™ Scanner v1.6 Evidence Engine", page_icon="🧭", layout="centered")
+st.set_page_config(page_title="OmaKurz™ Scanner v1.7 Pro", page_icon="🧭", layout="centered")
 
-st.title("🧭 OMAKURZ™ SCANNER v1.6")
-st.caption("Evidence Engine Edition — Echte Punktezählung & Forensik-Logik")
+st.title("🧭 OMAKURZ™ SCANNER v1.7")
+st.caption("Evidence Engine Pro Edition — Gewichtete Scores & Beschleunigungs-Forensik")
 
 ticker_symbol = st.text_input("Börsenkürzel / Ticker eingeben (z.B. OSPN, ALNY, RTO.L):", "OSPN").upper()
 
-if st.button("⚡ Evidence-Analyse starten"):
+if st.button("⚡ Pro-Forensik-Analyse starten"):
     try:
         stock = ticker_data.Ticker(ticker_symbol)
         info = stock.info
@@ -28,19 +28,31 @@ if st.button("⚡ Evidence-Analyse starten"):
         enterprise_val = info.get("enterpriseValue", 0.0) / 1e9
         shares_outstanding = info.get("sharesOutstanding", 0) / 1e6
 
+        # Historische Wachstumsprüfung für Beschleunigungs-Logik holen
+        hist = stock.history(period="3y")
+        # Vereinfachte Annäherung für den Trend aus Quartals-/Jahresdaten
+        acceleration_status = "📊 Solide / Stabil"
+        if len(hist) > 200:
+            # Check Kurs- oder Trend-Momentum als Indikator
+            recent_return = (hist['Close'].iloc[-1] - hist['Close'].iloc[-50]) / hist['Close'].iloc[-50]
+            older_return = (hist['Close'].iloc[-50] - hist['Close'].iloc[-100]) / hist['Close'].iloc[-100]
+            if recent_return > older_return and rev_growth > 10:
+                acceleration_status = "⚡ Beschleunigung aktiv (Dynamik steigt)"
+            elif recent_return < older_return:
+                acceleration_status = "🛑 Dynamik bricht ab / Verlangsamung"
+
         st.header(f"Ergebnisse für {company_name} ({sector})")
 
         # -------------------------------------------------------------
-        # 1. ECHTER DATEN-VERTRAUENS-SCORE (Evidence Engine)
+        # 1. ENTGELTETES EVIDENCE- & DATEN-VERTRAUEN (Getrennt von Schulden)
         # -------------------------------------------------------------
-        confidence_points = 0
-        if net_cash != 0: confidence_points += 20
-        if op_cashflow != 0: confidence_points += 20
-        if rev_growth != 0: confidence_points += 20
-        if shares_outstanding > 0: confidence_points += 20
-        if pe_ratio and pe_ratio > 0: confidence_points += 20
+        evidence_points = 0
+        if info.get("totalRevenue") is not None: evidence_points += 25
+        if info.get("operatingCashflow") is not None: evidence_points += 25
+        if info.get("sharesOutstanding") is not None: evidence_points += 25
+        if pe_ratio is not None or pb_ratio is not None: evidence_points += 25
 
-        st.info(f"🛡️ **OmaKurz™ Evidence Schild:** Marktkapitalisierung: {market_cap:.2f} Mrd. USD | EV: {enterprise_val:.2f} Mrd. USD | **Daten-Transparenz: {confidence_points}/100**")
+        st.info(f"🛡️ **OmaKurz™ Evidence Schild:** Marktkapitalisierung: {market_cap:.2f} Mrd. USD | EV: {enterprise_val:.2f} Mrd. USD | **Daten-Transparenz: {evidence_points}/100**")
 
         # -------------------------------------------------------------
         # 2. VETO & STATUS LOGIK
@@ -68,38 +80,41 @@ if st.button("⚡ Evidence-Analyse starten"):
             st.error(f"⛔ **Veto-Sperre aktiv:** Kein Kronjuwel-Status wegen: {', '.join(veto_reasons)}")
 
         # -------------------------------------------------------------
-        # 3. DYNAMISCHE OMA & KURZ SCORES (Echte mathematische Berechnung)
+        # 3. GEWICHTETER OMA-SCORE & KURZ-SCORE
         # -------------------------------------------------------------
-        # Oma-Score: Basiert auf Netto-Cash-Stärke & Operativem Cashflow
-        oma_score = 40
-        if net_cash > 0: oma_score += 30
-        if op_cashflow > 0.5: oma_score += 30
-        elif op_cashflow > 0: oma_score += 15
-        oma_score = min(oma_score, 100)
+        # Oma-Score (Gewichtet nach Netto-Cash, OCF, Schuldenfreiheit)
+        oma_substanz = 20
+        if net_cash > 0: oma_substanz += 35
+        elif net_cash > -2: oma_substanz += 15
+        if op_cashflow > 0.5: oma_substanz += 35
+        elif op_cashflow > 0: oma_substanz += 20
+        oma_substanz = min(oma_substanz, 100)
 
-        # Kurz-Score: Basiert auf Umsatzwachstum & Profitabilität
-        kurz_score = 30
-        if rev_growth > 10: kurz_score += 40
-        elif rev_growth > 0: kurz_score += 20
-        if profit_margin > 10: kurz_score += 30
-        elif profit_margin > 0: kurz_score += 15
-        kurz_score = min(kurz_score, 100)
+        # Kurz-Score (Gewichtet nach Wachstum & Marge)
+        kurz_zukunft = 20
+        if rev_growth > 15: kurz_zukunft += 45
+        elif rev_growth > 5: kurz_zukunft += 25
+        if profit_margin > 15: kurz_zukunft += 35
+        elif profit_margin > 0: kurz_zukunft += 15
+        kurz_zukunft = min(kurz_zukunft, 100)
 
-        # 🧠 OMAKURZ-KERN-URTEIL (Automatisiert aus Scores)
+        # 🧠 OMAKURZ-KERN-URTEIL (Inkl. Ray's Klassiker)
         st.markdown("### 🧓 OmaKurz-Kern-Urteil")
-        if oma_score >= 80 and kurz_score >= 60:
-            st.markdown("💬 *„Die Firma liefert echten operativen Cashflow und starke Substanz. Hier bezahlt man nicht nur für Träume, sondern bekommt handfeste Fundamentaldaten auf den Tisch.“*")
-        elif kurz_score >= 70 and oma_score < 60:
-            st.markdown("💬 *„Das Wachstum ist stark, aber der Markt verlangt bereits Vorschusslorbeeren. Die Bilanz muss zeigen, dass die Dynamik in harten Cashflow überspringt.“*")
+        if oma_substanz >= 75 and kurz_zukunft >= 60:
+            st.markdown("💬 *„Die Story ist groß – aber diesmal liegt tatsächlich einiges auf dem Tisch.“*")
+        elif kurz_zukunft >= 70 and oma_substanz < 50:
+            st.markdown("💬 *„Hier bezahlt der Markt nicht nur für das heutige Unternehmen, sondern bereits für einen beträchtlichen Teil der Zukunft.“*")
         else:
-            st.markdown("💬 *„Achtung: Die Bilanzen oder Schulden zeigen, dass hier das Risiko erhöht ist. Kein reines Substanz-Investment.“*")
+            st.markdown("💬 *„Schöne Geschichte, mein Junge. Jetzt zeig mir erstmal, was wirklich auf the Tisch liegt.“*")
 
-        # METRIK-BLOCKS MIT ECHTEN PUNKTEWERTEN
+        # METRIK-BLOCKS
         st.markdown("---")
-        st.col1, st.col2, st.col3 = st.columns(3)
-        st.metric("🏛️ Oma - Substanz", f"{oma_score} / 100")
-        st.metric("🚀 Kurz - Zukunft", f"{kurz_score} / 100")
-        st.metric("⚡ Dynamic / Growth", f"{rev_growth:.1f} % p.a.")
+        col_a, col_b, col_c = st.columns(3)
+        with col_a: st.metric("🏛️ Oma - Substanz", f"{oma_substanz} / 100")
+        with col_b: st.metric("🚀 Kurz - Zukunft", f"{kurz_zukunft} / 100")
+        with col_c: st.metric("⚡ Dynamic / Growth", f"{rev_growth:.1f} % p.a.")
+
+        st.write(f"**Beschleunigungs-Status:** {acceleration_status}")
 
         # -------------------------------------------------------------
         # 4. FINANZIERUNGS-DETEKTIV & SUBSTANZ
@@ -132,8 +147,8 @@ if st.button("⚡ Evidence-Analyse starten"):
             st.write(f"• Bei **-40% Korrektur**: Portfolio-Wert 600 € (-400 €)")
             st.write(f"• Bei **-60% Krise**: Portfolio-Wert 400 € (-600 €)")
 
-        st.caption("OmaKurz™ Scanner v1.6 Evidence Engine • Anti-FOMO Analyse-System")
+        st.caption("OmaKurz™ Scanner v1.7 Pro • Anti-FOMO Analyse-System")
 
     except Exception as e:
-        st.error(f"Fehler bei der Evidence-Analyse: {e}")
+        st.error(f"Fehler bei der Pro-Forensik-Analyse: {e}")
         
