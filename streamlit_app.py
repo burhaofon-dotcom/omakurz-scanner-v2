@@ -2,12 +2,12 @@ import streamlit as st
 import yfinance as yf
 
 st.set_page_config(
-    page_title="OmaKurz Scanner v1.1",
+    page_title="OmaKurz Scanner v1.3",
     page_icon="🧭",
     layout="wide"
 )
 
-# --- STYLING (Gefixt für Mobile & Anti-FOMO Lesbarkeit) ---
+# --- STYLING ---
 st.markdown("""
 <style>
 .main-header { text-align: center; padding: 10px 0; }
@@ -18,6 +18,7 @@ st.markdown("""
 .hammer-box { background-color: #fef2f2; border-left: 6px solid #dc2626; padding: 15px; border-radius: 4px; margin: 10px 0; }
 .diamond-box { background-color: #f0fdf4; border-left: 6px solid #16a34a; padding: 15px; border-radius: 4px; margin: 10px 0; }
 .fomo-shield { background-color: #fffbeb; color: #1e293b; border: 1px solid #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+.val-tag { font-weight: bold; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -25,7 +26,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
   <div class="compass">🧭</div>
-  <h1>OMAKURZ™ SCANNER v1.1</h1>
+  <h1>OMAKURZ™ SCANNER v1.3</h1>
   <p>Analyse-Kompass & Anti-FOMO Forensik</p>
 </div>
 <div class="quote">„Was du nicht verstehst oder was nicht belegt ist, kaufst du nicht.“</div>
@@ -110,6 +111,20 @@ if scan_btn or ticker_input:
 
             doubling_years = round(72 / rev_growth, 1) if rev_growth > 0 else "N/A"
 
+            # === BEWERTUNGS-EXPRESS-CHECK (In einem Satz) ===
+            if op_cashflow < 0:
+                val_sentence = "🔴 **Bewertung:** Spekulativ überhitzt oder defizitär – Aktie verbrennt Geld ohne nachhaltigen Ertrag."
+            elif pe_ratio is None:
+                val_sentence = "🟡 **Bewertung:** Nicht klassisch bewertbar – Keine nachhaltigen Gewinne ausgewiesen."
+            elif pe_ratio < 18 and rev_growth > 5:
+                val_sentence = f"🟢 **Bewertung:** Attraktiv / Günstig – KGV von {pe_ratio:.1f} ist durch solides Wachstum gut abgesichert."
+            elif pe_ratio <= 35 and profit_margin > 18:
+                val_sentence = f"🔵 **Bewertung:** Fair bewertet – Das KGV von {pe_ratio:.1f} spiegelt hohe Qualität und starke Margen wider."
+            elif pe_ratio > 35 or (pb_ratio and pb_ratio > 15 and rev_growth < 15):
+                val_sentence = f"🟡 **Bewertung:** Ambitioniert / Sportlich – KGV von {pe_ratio:.1f} erfordert fehlerfreies Zukunfts-Wachstum."
+            else:
+                val_sentence = f"🔵 **Bewertung:** Angemessen bewertet – KGV von {pe_ratio:.1f} liegt im marktüblichen Rahmen."
+
             # === OMA-HAMMER (Knockout-Risiken) ===
             hammer_triggers = []
             if op_cashflow < 0 and (runway_months is not None and runway_months < 12):
@@ -123,23 +138,41 @@ if scan_btn or ticker_input:
             if data_confidence < 40:
                 hammer_triggers.append("🔍 **Nicht ausreichend verstanden:** Die Datenlage ist zu unvollständig für ein solides Urteil.")
 
-            # === SCORE BERECHNUNG ===
+            # === SCORE BERECHNUNG v1.3 ===
             oma_score = 50
-            if net_cash > 0: oma_score += 25
-            else: oma_score -= 10
-            if pb_ratio and pb_ratio < 5.0: oma_score += 15
-            if payout_ratio > 0 and payout_ratio <= 70: oma_score += 10
-            elif payout_ratio > 90: oma_score -= 15
+
+            if net_cash > 0:
+                oma_score += 20
+            elif op_cashflow > 10e9:
+                oma_score += 20
+            elif op_cashflow > 0:
+                oma_score += 5
+
+            if profit_margin > 20:
+                oma_score += 15
+            elif profit_margin > 10:
+                oma_score += 10
+
+            if pb_ratio and pb_ratio < 5.0:
+                oma_score += 15
+            elif profit_margin > 20 and pb_ratio:
+                oma_score += 10
+
+            if payout_ratio > 0 and payout_ratio <= 75:
+                oma_score += 5
+
             oma_score = max(0, min(100, oma_score))
 
             kurz_score = 50
             if rev_growth > 10: kurz_score += 20
-            elif rev_growth < 0: kurz_score -= 20
-            if profit_margin > 15: kurz_score += 15
+            elif rev_growth > 0: kurz_score += 10
+            elif rev_growth < -10: kurz_score -= 20
+
+            if profit_margin > 20: kurz_score += 15
             if inst_ownership > 50: kurz_score += 15
             kurz_score = max(0, min(100, kurz_score))
 
-            # STATUS
+            # STATUS-KLASSIFIZIERUNG
             if hammer_triggers:
                 status_class = "🔨 OMA-HAMMER"
                 status_desc = "Kritische Warnsignale aktiv. Kein Investment ohne vollständige Klärung der Belege!"
@@ -169,12 +202,14 @@ if scan_btn or ticker_input:
             </div>
             """, unsafe_allow_html=True)
 
-            # STATUS / DIAMANT
+            # STATUS & BEWERTUNGS-SATZ
             if "OMA-HAMMER" in status_class:
                 st.markdown(f"""
                 <div class="hammer-box">
                   <h3 style="margin:0; color:#dc2626;">🔨 STATUS: OMA-HAMMER AKTIV</h3>
-                  <p style="margin:5px 0 0 0; color:#991b1b;">{status_desc}</p>
+                  <p style="margin:5px 0 10px 0; color:#991b1b;">{status_desc}</p>
+                  <hr style="border:0; border-top:1px solid #fca5a5; margin:8px 0;">
+                  <p style="margin:0; font-size:15px;">{val_sentence}</p>
                 </div>
                 """, unsafe_allow_html=True)
                 for ht in hammer_triggers:
@@ -183,7 +218,9 @@ if scan_btn or ticker_input:
                 st.markdown(f"""
                 <div class="diamond-box">
                   <h3 style="margin:0; color:#16a34a;">STATUS: {status_class}</h3>
-                  <p style="margin:5px 0 0 0; color:#166534;">{status_desc}</p>
+                  <p style="margin:5px 0 10px 0; color:#166534;">{status_desc}</p>
+                  <hr style="border:0; border-top:1px solid #bbf7d0; margin:8px 0;">
+                  <p style="margin:0; font-size:15px; color:#14532d;">{val_sentence}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -201,7 +238,7 @@ if scan_btn or ticker_input:
             # DETAILS
             st.subheader("🕵️‍♂️ 1. Finanzierungs-Detektiv & Substanz")
             f1, f2, f3, f4 = st.columns(4)
-            f1.metric("Netto-Cash", f"{net_cash / 1e9:.2f} Mrd. {currency}", delta="Positiv" if net_cash > 0 else "Verschuldet")
+            f1.metric("Netto-Cash", f"{net_cash / 1e9:.2f} Mrd. {currency}", delta="Positiv" if net_cash > 0 else "Verschuldet / Buybacks")
             f2.metric("Operativer Cashflow", f"{op_cashflow / 1e9:.2f} Mrd. {currency}")
             f3.metric("Finanzierung", "✅ Aus Betrieb" if op_cashflow > 0 else "🚨 Cash Burn")
             f4.metric("Runway (Reichweite)", runway_text)
@@ -229,7 +266,7 @@ if scan_btn or ticker_input:
 
             st.subheader("🔮 4. Entwicklungskorridor (Szenarien)")
             c1, c2, c3 = st.columns(3)
-            c1.warning(f"**Konservativ:** Flaches Wachstum, Margendruck. Fokus auf Netto-Cash ({net_cash / 1e9:.1f} Mrd. {currency}).")
+            c1.warning(f"**Konservativ:** Flaches Wachstum, Margendruck. Fokus auf Cashflow ({op_cashflow / 1e9:.1f} Mrd. {currency}).")
             c2.info(f"**Basis-Pfad:** Fortführung des aktuellen Trends ({rev_growth:.1f} % Wachstum, {profit_margin:.1f} % Marge).")
             c3.success(f"**Beschleunigt:** Kommerzialisierung gelingt, Erlöse verdoppeln sich alle {doubling_years} Jahre.")
 
@@ -237,5 +274,4 @@ if scan_btn or ticker_input:
             st.error(f"Fehler beim Abrufen oder Verarbeiten der Daten: {e}")
 
 st.divider()
-st.caption("OmaKurz™ Scanner v1.1 · Anti-FOMO Analyse-System · Keine Anlageberatung")
-            
+st.caption("OmaKurz™ Scanner v1.3 · Anti-FOMO Analyse-System · Keine Anlageberatung")
