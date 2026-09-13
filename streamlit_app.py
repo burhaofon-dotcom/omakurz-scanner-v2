@@ -1,154 +1,795 @@
 import streamlit as st
-import yfinance as ticker_data
+import yfinance as yf
+import pandas as pd
+import numpy as np
 
-st.set_page_config(page_title="OmaKurz™ Scanner v1.7 Pro", page_icon="🧭", layout="centered")
+st.set_page_config(
+    page_title="OmaKurz™ Scanner v2.2",
+    page_icon="🧭",
+    layout="centered"
+)
 
-st.title("🧭 OMAKURZ™ SCANNER v1.7")
-st.caption("Evidence Engine Pro Edition — Gewichtete Scores & Beschleunigungs-Forensik")
+st.title("🧭 OMAKURZ™ SCANNER v2.2")
+st.caption(
+    "Financing Detective • Dilution Delta • True Acceleration • "
+    "Pipeline & Story/Reality Framework"
+)
 
-ticker_symbol = st.text_input("Börsenkürzel / Ticker eingeben (z.B. OSPN, ALNY, RTO.L):", "OSPN").upper()
+ticker_symbol = st.text_input(
+    "Börsenkürzel / Ticker eingeben (z.B. OSPN, ALNY, RTO.L):",
+    "OSPN"
+).upper().strip()
 
-if st.button("⚡ Pro-Forensik-Analyse starten"):
+
+# ============================================================
+# HILFSFUNKTIONEN
+# ============================================================
+
+def safe_float(value, default=np.nan):
     try:
-        stock = ticker_data.Ticker(ticker_symbol)
+        if value is None:
+            return default
+        if pd.isna(value):
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def find_row(df, candidates):
+    """Findet möglichst robuste Zeilen in yfinance DataFrames."""
+    if df is None or df.empty:
+        return None
+
+    for candidate in candidates:
+        for row in df.index:
+            row_str = str(row).lower()
+            if candidate.lower() in row_str:
+                return row
+
+    return None
+
+
+def clean_series(series):
+    """Entfernt fehlende Werte und sortiert chronologisch."""
+    if series is None:
+        return pd.Series(dtype=float)
+
+    try:
+        s = pd.to_numeric(series, errors="coerce").dropna()
+
+        if len(s) == 0:
+            return pd.Series(dtype=float)
+
+        # yfinance liefert meist neuestes Jahr zuerst.
+        # Wir wollen alt -> neu.
+        return s.iloc[::-1]
+    except Exception:
+        return pd.Series(dtype=float)
+
+
+def format_money(value):
+    if pd.isna(value):
+        return "n/a"
+
+    abs_value = abs(value)
+
+    if abs_value >= 1:
+        return f"{value:.2f} Mrd."
+    return f"{value * 1000:.0f} Mio."
+
+
+def classify_acceleration(series):
+    """
+    Unterscheidet:
+    - Rückläufig
+    - Beschleunigend
+    - Linear / stabil
+    - Verlangsamend
+    """
+
+    s = clean_series(series)
+
+    if len(s) < 4:
+        return {
+            "label": "⚪ Keine ausreichende Historie",
+            "score": 60,
+            "deltas": [],
+            "growth_rates": []
+        }
+
+    vals = s.values.astype(float)
+
+    deltas = np.diff(vals)
+
+    growth_rates = []
+
+    for i in range(1, len(vals)):
+        previous = vals[i - 1]
+
+        if previous != 0:
+            growth_rates.append((vals[i] / previous) - 1)
+        else:
+            growth_rates.append(np.nan)
+
+    # Umsatz selbst fällt
+    if vals[-1] < vals[-2]:
+        label = "🔴 Rückläufig"
+        score = 25
+
+    else:
+        # Veränderung der absoluten Zuwächse
+        delta_change = deltas[-1] - deltas[-2]
+
+        # Toleranz relativ zum vorherigen Delta
+        reference = max(abs(deltas[-2]), 1)
+
+        tolerance = reference * 0.05
+
+        if delta_change > tolerance:
+            label = "🟢 Beschleunigend"
+            score = 90
+
+        elif abs(delta_change) <= tolerance:
+            label = "➡️ Wachsend, aber ungefähr linear"
+            score = 70
+
+        else:
+            label = "🟠 Verlangsamend"
+            score = 45
+
+    return {
+        "label": label,
+        "score": score,
+        "deltas": deltas.tolist(),
+        "growth_rates": growth_rates
+    }
+
+
+def growth_comparison(start, end):
+    """
+    Vergleich zweier Größen.
+    Gibt relative Veränderung zurück.
+    """
+
+    if pd.isna(start) or pd.isna(end) or start == 0:
+        return np.nan
+
+    return ((end / start) - 1) * 100
+
+
+# ============================================================
+# ENGINE
+# ============================================================
+
+if st.button("⚡ OmaKurz v2.2 starten"):
+
+    try:
+
+        # ====================================================
+        # DATEN LADEN
+        # ====================================================
+
+        stock = yf.Ticker(ticker_symbol)
+
         info = stock.info
-        
+
         company_name = info.get("longName", ticker_symbol)
         sector = info.get("sector", "Unbekannt")
-        pe_ratio = info.get("trailingPE", None)
-        pb_ratio = info.get("priceToBook", None)
-        rev_growth = info.get("revenueGrowth", 0) * 100 if info.get("revenueGrowth") else 0.0
-        profit_margin = info.get("profitMargins", 0) * 100 if info.get("profitMargins") else 0.0
-        current_price = info.get("currentPrice", info.get("regularMarketPrice", 0.0))
-        op_cashflow = info.get("operatingCashflow", 0.0) / 1e9
-        total_debt = info.get("totalDebt", 0.0) / 1e9
-        total_cash = info.get("totalCash", 0.0) / 1e9
+
+        current_price = safe_float(
+            info.get("currentPrice", info.get("regularMarketPrice"))
+        )
+
+        market_cap = safe_float(info.get("marketCap"))
+
+        total_cash = safe_float(info.get("totalCash"))
+        total_debt = safe_float(info.get("totalDebt"))
+
+        if pd.isna(total_cash):
+            total_cash = 0
+
+        if pd.isna(total_debt):
+            total_debt = 0
+
         net_cash = total_cash - total_debt
-        market_cap = info.get("marketCap", 0.0) / 1e9
-        enterprise_val = info.get("enterpriseValue", 0.0) / 1e9
-        shares_outstanding = info.get("sharesOutstanding", 0) / 1e6
 
-        # Historische Wachstumsprüfung für Beschleunigungs-Logik holen
-        hist = stock.history(period="3y")
-        # Vereinfachte Annäherung für den Trend aus Quartals-/Jahresdaten
-        acceleration_status = "📊 Solide / Stabil"
-        if len(hist) > 200:
-            # Check Kurs- oder Trend-Momentum als Indikator
-            recent_return = (hist['Close'].iloc[-1] - hist['Close'].iloc[-50]) / hist['Close'].iloc[-50]
-            older_return = (hist['Close'].iloc[-50] - hist['Close'].iloc[-100]) / hist['Close'].iloc[-100]
-            if recent_return > older_return and rev_growth > 10:
-                acceleration_status = "⚡ Beschleunigung aktiv (Dynamik steigt)"
-            elif recent_return < older_return:
-                acceleration_status = "🛑 Dynamik bricht ab / Verlangsamung"
+        rev_growth = safe_float(info.get("revenueGrowth"))
+        profit_margin = safe_float(info.get("profitMargins"))
 
-        st.header(f"Ergebnisse für {company_name} ({sector})")
+        if not pd.isna(rev_growth):
+            rev_growth *= 100
 
-        # -------------------------------------------------------------
-        # 1. ENTGELTETES EVIDENCE- & DATEN-VERTRAUEN (Getrennt von Schulden)
-        # -------------------------------------------------------------
-        evidence_points = 0
-        if info.get("totalRevenue") is not None: evidence_points += 25
-        if info.get("operatingCashflow") is not None: evidence_points += 25
-        if info.get("sharesOutstanding") is not None: evidence_points += 25
-        if pe_ratio is not None or pb_ratio is not None: evidence_points += 25
+        if not pd.isna(profit_margin):
+            profit_margin *= 100
 
-        st.info(f"🛡️ **OmaKurz™ Evidence Schild:** Marktkapitalisierung: {market_cap:.2f} Mrd. USD | EV: {enterprise_val:.2f} Mrd. USD | **Daten-Transparenz: {evidence_points}/100**")
+        # Finanzberichte
+        try:
+            financials = stock.financials
+        except Exception:
+            financials = pd.DataFrame()
 
-        # -------------------------------------------------------------
-        # 2. VETO & STATUS LOGIK
-        # -------------------------------------------------------------
-        has_veto = False
-        veto_reasons = []
-        if net_cash < 0 and op_cashflow <= 0:
-            has_veto = True
-            veto_reasons.append("Negativer Cashflow bei Verschuldung")
-        if pe_ratio and pe_ratio > 80:
-            has_veto = True
-            veto_reasons.append("Extrem überhöhte Bewertung (KGV > 80)")
+        try:
+            cashflow = stock.cashflow
+        except Exception:
+            cashflow = pd.DataFrame()
 
-        if not has_veto and op_cashflow > 0 and (pe_ratio and pe_ratio < 25):
-            status = "💎 Kronjuwel / Geschliffener Diamant"
-            st.success(f"**STATUS:** {status}")
-        elif not has_veto and rev_growth > 15:
-            status = "💠 Rohdiamant mit Wachstumspotenzial"
-            st.info(f"**STATUS:** {status}")
+        try:
+            balance_sheet = stock.balance_sheet
+        except Exception:
+            balance_sheet = pd.DataFrame()
+
+
+        # ====================================================
+        # 1. EVIDENCE ENGINE
+        # ====================================================
+
+        revenue_row = find_row(
+            financials,
+            ["Total Revenue", "Operating Revenue"]
+        )
+
+        ocf_row = find_row(
+            cashflow,
+            ["Operating Cash Flow", "Total Cash From Operating Activities"]
+        )
+
+        capex_row = find_row(
+            cashflow,
+            [
+                "Capital Expenditure",
+                "Capital Expenditure Reported",
+                "Purchase Of Property Plant And Equipment"
+            ]
+        )
+
+        net_income_row = find_row(
+            financials,
+            ["Net Income"]
+        )
+
+        # Share Count:
+        # ABSICHTLICH KEIN "Common Stock"
+        share_row = find_row(
+            balance_sheet,
+            [
+                "Ordinary Shares Number",
+                "Share Issued"
+            ]
+        )
+
+        revenue_series = clean_series(
+            financials.loc[revenue_row]
+            if revenue_row is not None
+            else None
+        )
+
+        ocf_series = clean_series(
+            cashflow.loc[ocf_row]
+            if ocf_row is not None
+            else None
+        )
+
+        capex_series = clean_series(
+            cashflow.loc[capex_row]
+            if capex_row is not None
+            else None
+        )
+
+        net_income_series = clean_series(
+            financials.loc[net_income_row]
+            if net_income_row is not None
+            else None
+        )
+
+        shares_series = clean_series(
+            balance_sheet.loc[share_row]
+            if share_row is not None
+            else None
+        )
+
+        has_revenue = len(revenue_series) > 0
+        has_ocf = len(ocf_series) > 0
+        has_hist = len(revenue_series) >= 3
+        has_shares = len(shares_series) >= 2
+        has_capex = len(capex_series) > 0
+
+        evidence_score = 30
+
+        if has_revenue:
+            evidence_score += 15
+
+        if has_ocf:
+            evidence_score += 15
+
+        if has_hist:
+            evidence_score += 15
+
+        if has_shares:
+            evidence_score += 10
+
+        if has_capex:
+            evidence_score += 5
+
+        evidence_score = min(evidence_score, 100)
+
+        st.markdown("### 🔍 Evidence & Datenabdeckung")
+
+        e1, e2 = st.columns(2)
+
+        with e1:
+            st.write(
+                f"• Umsatzdaten: "
+                f"{'🟢 Vorhanden' if has_revenue else '🔴 Fehlt'}"
+            )
+
+            st.write(
+                f"• Historie: "
+                f"{'🟢 3+ Jahre' if has_hist else '🟡 Begrenzt'}"
+            )
+
+            st.write(
+                f"• OCF: "
+                f"{'🟢 Vorhanden' if has_ocf else '🔴 Fehlt'}"
+            )
+
+        with e2:
+            st.write(
+                f"• Aktienhistorie: "
+                f"{'🟢 Vorhanden' if has_shares else '🟡 Nicht ausreichend'}"
+            )
+
+            st.write(
+                f"• CapEx: "
+                f"{'🟢 Vorhanden' if has_capex else '🟡 Fehlt'}"
+            )
+
+            st.write("• Pipeline: ⚪ Noch nicht verifiziert")
+            st.write("• Primärquellen: ⚪ Noch nicht verifiziert")
+
+        st.caption(
+            f"Transparenz-/Datenabdeckungsindex: "
+            f"{evidence_score}/100"
+        )
+
+
+        # ====================================================
+        # 2. FCF ENGINE
+        # ====================================================
+
+        fcf_series = pd.Series(dtype=float)
+
+        if has_ocf and has_capex:
+
+            try:
+                combined = pd.concat(
+                    [
+                        ocf_series.rename("OCF"),
+                        capex_series.rename("CapEx")
+                    ],
+                    axis=1
+                ).dropna()
+
+                if not combined.empty:
+                    # CapEx ist bei yfinance normalerweise negativ.
+                    # Daher OCF + CapEx.
+                    fcf_series = combined["OCF"] + combined["CapEx"]
+
+            except Exception:
+                fcf_series = pd.Series(dtype=float)
+
+
+        # ====================================================
+        # 3. TRUE DELTA ACCELERATION
+        # ====================================================
+
+        acceleration = classify_acceleration(revenue_series)
+
+        rev_accel_label = acceleration["label"]
+        accel_score = acceleration["score"]
+
+        st.markdown("### ⚡ True Delta Acceleration")
+
+        if len(revenue_series) >= 4:
+
+            history_text = " → ".join(
+                format_money(v / 1e9)
+                for v in revenue_series.values
+            )
+
+            st.write(
+                f"**Umsatz:** {history_text}"
+            )
+
+            deltas = acceleration["deltas"]
+
+            delta_text = " → ".join(
+                format_money(v / 1e9)
+                for v in deltas
+            )
+
+            st.write(
+                f"**Jährliche Zuwächse:** {delta_text}"
+            )
+
+            st.write(
+                f"**Dynamik:** {rev_accel_label}"
+            )
+
         else:
-            status = "⚠️ Spekulativ / Substanz-Prüfung erforderlich"
-            st.warning(f"**STATUS:** {status}")
 
-        if has_veto:
-            st.error(f"⛔ **Veto-Sperre aktiv:** Kein Kronjuwel-Status wegen: {', '.join(veto_reasons)}")
+            st.warning(
+                "Für eine belastbare Beschleunigungsanalyse "
+                "liegen zu wenige historische Umsatzdaten vor."
+            )
 
-        # -------------------------------------------------------------
-        # 3. GEWICHTETER OMA-SCORE & KURZ-SCORE
-        # -------------------------------------------------------------
-        # Oma-Score (Gewichtet nach Netto-Cash, OCF, Schuldenfreiheit)
+
+        # ====================================================
+        # 4. FCF DYNAMIK
+        # ====================================================
+
+        fcf_label = "⚪ Nicht ausreichend"
+
+        if len(fcf_series) >= 3:
+
+            fcf_values = fcf_series.values
+
+            if fcf_values[-1] < 0:
+
+                if fcf_values[-2] < fcf_values[-1]:
+                    fcf_label = "🟠 Cash Burn bleibt problematisch"
+
+                else:
+                    fcf_label = "🟡 Cash Burn verbessert sich"
+
+            else:
+
+                if fcf_values[-1] > fcf_values[-2]:
+                    fcf_label = "🟢 FCF verbessert sich"
+
+                elif fcf_values[-1] < fcf_values[-2]:
+                    fcf_label = "🟠 FCF verschlechtert sich"
+
+                else:
+                    fcf_label = "➡️ FCF ungefähr stabil"
+
+        st.write(f"**FCF-Dynamik:** {fcf_label}")
+
+
+        # ====================================================
+        # 5. CAPITAL & DILUTION DETECTIVE
+        # ====================================================
+
+        st.markdown("### 🕵️ Capital & Dilution Detective")
+
+        dilution_score = 50
+
+        share_change_pct = np.nan
+        revenue_change_pct = np.nan
+        fcf_change_pct = np.nan
+
+        if has_shares:
+
+            s_start = shares_series.iloc[0]
+            s_end = shares_series.iloc[-1]
+
+            share_change_pct = growth_comparison(
+                s_start,
+                s_end
+            )
+
+            st.write(
+                f"**Aktienzahl:** "
+                f"{s_start / 1e6:.1f} Mio. → "
+                f"{s_end / 1e6:.1f} Mio. "
+                f"({share_change_pct:+.1f}%)"
+            )
+
+        else:
+
+            st.write(
+                "🟡 Keine ausreichende Aktienhistorie verfügbar."
+            )
+
+
+        if len(revenue_series) >= 2:
+
+            revenue_change_pct = growth_comparison(
+                revenue_series.iloc[0],
+                revenue_series.iloc[-1]
+            )
+
+            st.write(
+                f"**Umsatz über denselben Zeitraum:** "
+                f"{revenue_change_pct:+.1f}%"
+            )
+
+
+        if len(fcf_series) >= 2:
+
+            fcf_start = fcf_series.iloc[0]
+            fcf_end = fcf_series.iloc[-1]
+
+            # Keine sinnlose Prozentrechnung bei negativem Startwert.
+            if fcf_start > 0:
+
+                fcf_change_pct = growth_comparison(
+                    fcf_start,
+                    fcf_end
+                )
+
+                st.write(
+                    f"**FCF über denselben Zeitraum:** "
+                    f"{fcf_change_pct:+.1f}%"
+                )
+
+            else:
+
+                st.write(
+                    "**FCF:** Ausgangswert negativ – "
+                    "kein irreführender Wachstumsprozentsatz."
+                )
+
+
+        # ====================================================
+        # DILUTION DELTA INTERPRETATION
+        # ====================================================
+
+        if not pd.isna(share_change_pct):
+
+            if share_change_pct > 10:
+
+                if (
+                    not pd.isna(revenue_change_pct)
+                    and revenue_change_pct < share_change_pct
+                ):
+
+                    dilution_delta_text = (
+                        "🔴 Aktienzahl wächst deutlich schneller "
+                        "als der Umsatz."
+                    )
+
+                    dilution_score = 25
+
+                else:
+
+                    dilution_delta_text = (
+                        "🟡 Aktienzahl deutlich gestiegen – "
+                        "wirtschaftliche Gegenleistung prüfen."
+                    )
+
+                    dilution_score = 45
+
+            elif share_change_pct > 3:
+
+                dilution_delta_text = (
+                    "🟡 Aktienzahl moderat gestiegen – "
+                    "Ursache muss geprüft werden."
+                )
+
+                dilution_score = 60
+
+            else:
+
+                dilution_delta_text = (
+                    "🟢 Aktienzahl relativ stabil."
+                )
+
+                dilution_score = 85
+
+        else:
+
+            dilution_delta_text = (
+                "⚪ Keine ausreichende Aktienhistorie."
+            )
+
+        st.write(
+            f"**Dilution Delta:** {dilution_delta_text}"
+        )
+
+        st.caption(
+            "Wichtig: Eine steigende Aktienzahl ist noch kein Beweis "
+            "für Verwässerung. Ursache muss separat geprüft werden."
+        )
+
+
+        # ====================================================
+        # 6. FINANCING DETECTIVE
+        # ====================================================
+
+        st.markdown("### 💰 Finanzierungs-Detektiv")
+
+        op_cashflow_current = (
+            ocf_series.iloc[-1] / 1e9
+            if len(ocf_series) > 0
+            else np.nan
+        )
+
+        fcf_current = (
+            fcf_series.iloc[-1] / 1e9
+            if len(fcf_series) > 0
+            else np.nan
+        )
+
+        cash_burn = np.nan
+        runway_years = np.nan
+
+        if not pd.isna(fcf_current) and fcf_current < 0:
+
+            cash_burn = abs(fcf_current)
+
+            if total_cash > 0:
+
+                runway_years = total_cash / (
+                    cash_burn * 1e9
+                )
+
+        st.write(
+            f"• **Cash:** {format_money(total_cash / 1e9)}"
+        )
+
+        st.write(
+            f"• **Debt:** {format_money(total_debt / 1e9)}"
+        )
+
+        st.write(
+            f"• **Netto-Cash:** "
+            f"{format_money(net_cash / 1e9)}"
+        )
+
+        if not pd.isna(op_cashflow_current):
+
+            st.write(
+                f"• **Operativer Cashflow:** "
+                f"{format_money(op_cashflow_current)}"
+            )
+
+        if not pd.isna(fcf_current):
+
+            st.write(
+                f"• **Free Cashflow:** "
+                f"{format_money(fcf_current)}"
+            )
+
+        if not pd.isna(runway_years):
+
+            if runway_years < 2:
+
+                st.error(
+                    f"🚨 Rechnerische Cash-Runway nur ca. "
+                    f"{runway_years:.1f} Jahre."
+                )
+
+            elif runway_years < 4:
+
+                st.warning(
+                    f"🟡 Rechnerische Cash-Runway ca. "
+                    f"{runway_years:.1f} Jahre."
+                )
+
+            else:
+
+                st.success(
+                    f"🟢 Rechnerische Cash-Runway ca. "
+                    f"{runway_years:.1f} Jahre."
+                )
+
+        elif not pd.isna(fcf_current) and fcf_current >= 0:
+
+            st.success(
+                "🟢 Aktuell kein negativer FCF-Cash-Burn."
+            )
+
+        else:
+
+            st.info(
+                "⚪ Runway nicht zuverlässig berechenbar."
+            )
+
+
+        # ====================================================
+        # 7. OMA SUBSTANZ
+        # ====================================================
+
         oma_substanz = 20
-        if net_cash > 0: oma_substanz += 35
-        elif net_cash > -2: oma_substanz += 15
-        if op_cashflow > 0.5: oma_substanz += 35
-        elif op_cashflow > 0: oma_substanz += 20
+
+        if net_cash > 0:
+            oma_substanz += 35
+
+        elif net_cash > -2e9:
+            oma_substanz += 15
+
+        if not pd.isna(op_cashflow_current):
+
+            if op_cashflow_current > 0:
+                oma_substanz += 25
+
+            elif op_cashflow_current > -0.5:
+                oma_substanz += 10
+
+        if not pd.isna(fcf_current):
+
+            if fcf_current > 0:
+                oma_substanz += 20
+
         oma_substanz = min(oma_substanz, 100)
 
-        # Kurz-Score (Gewichtet nach Wachstum & Marge)
+
+        # ====================================================
+        # 8. KURZ ZUKUNFT
+        # ====================================================
+
         kurz_zukunft = 20
-        if rev_growth > 15: kurz_zukunft += 45
-        elif rev_growth > 5: kurz_zukunft += 25
-        if profit_margin > 15: kurz_zukunft += 35
-        elif profit_margin > 0: kurz_zukunft += 15
+
+        if not pd.isna(rev_growth):
+
+            if rev_growth > 20:
+                kurz_zukunft += 40
+
+            elif rev_growth > 10:
+                kurz_zukunft += 25
+
+            elif rev_growth > 5:
+                kurz_zukunft += 15
+
+        if not pd.isna(profit_margin):
+
+            if profit_margin > 15:
+                kurz_zukunft += 30
+
+            elif profit_margin > 0:
+                kurz_zukunft += 15
+
         kurz_zukunft = min(kurz_zukunft, 100)
 
-        # 🧠 OMAKURZ-KERN-URTEIL (Inkl. Ray's Klassiker)
-        st.markdown("### 🧓 OmaKurz-Kern-Urteil")
-        if oma_substanz >= 75 and kurz_zukunft >= 60:
-            st.markdown("💬 *„Die Story ist groß – aber diesmal liegt tatsächlich einiges auf dem Tisch.“*")
-        elif kurz_zukunft >= 70 and oma_substanz < 50:
-            st.markdown("💬 *„Hier bezahlt der Markt nicht nur für das heutige Unternehmen, sondern bereits für einen beträchtlichen Teil der Zukunft.“*")
-        else:
-            st.markdown("💬 *„Schöne Geschichte, mein Junge. Jetzt zeig mir erstmal, was wirklich auf the Tisch liegt.“*")
 
-        # METRIK-BLOCKS
-        st.markdown("---")
-        col_a, col_b, col_c = st.columns(3)
-        with col_a: st.metric("🏛️ Oma - Substanz", f"{oma_substanz} / 100")
-        with col_b: st.metric("🚀 Kurz - Zukunft", f"{kurz_zukunft} / 100")
-        with col_c: st.metric("⚡ Dynamic / Growth", f"{rev_growth:.1f} % p.a.")
+        # ====================================================
+        # 9. PIPELINE FRAMEWORK
+        # ====================================================
 
-        st.write(f"**Beschleunigungs-Status:** {acceleration_status}")
+        st.markdown("### 🧬 Pipeline")
 
-        # -------------------------------------------------------------
-        # 4. FINANZIERUNGS-DETEKTIV & SUBSTANZ
-        # -------------------------------------------------------------
-        st.subheader("🕵️ 1. Finanzierungs-Detektiv & Substanz")
-        st.write(f"**Netto-Cash:** {net_cash:.2f} Mrd. USD " + ("(🟢 Positiv)" if net_cash > 0 else "(🔴 Negativ)"))
-        st.write(f"**Operativer Cashflow:** {op_cashflow:.2f} Mrd. USD")
-        st.write(f"**Finanzierung:** {'✅ Solide aus Betrieb' if op_cashflow > 0 else '⚠️ Externer Kapitalbedarf möglich'}")
+        st.info(
+            "v2.2 erkennt Pipeline-Relevanz, verifiziert aber noch "
+            "keine klinischen Phasen oder Entwicklungsprogramme "
+            "automatisch. Dafür müssen Unternehmensangaben und "
+            "Primärquellen eingebunden werden."
+        )
 
-        # -------------------------------------------------------------
-        # 5. BEATE SANDER HYPOTHETISCHES RECHENBEISPIEL
-        # -------------------------------------------------------------
-        st.markdown("---")
-        st.subheader("🎯 Was würde ein 1.000-€-Beispiel bedeuten?")
-        st.caption("Hypothetisches Rechenbeispiel zur Positionsgröße & Risiko-Abschätzung (Kein Kaufbefehl)")
-        
-        ziel_summe = 1000.0
-        stueckzahl = ziel_summe / current_price if current_price > 0 else 0
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Positions-Struktur:**")
-            st.write(f"• **Hypothetische Stückzahl:** ca. **{stueckzahl:.2f} Aktien**")
-            st.write("• **Tranchen-Aufteilung:** 3er-Split (je 333 €)")
-            st.write(f"• **Aktueller Kurs:** {current_price:.2f} USD")
-            
-        with col2:
-            st.markdown("**Stresstest (Verlust-Szenario):**")
-            st.write(f"• Bei **-20% Korrektur**: Portfolio-Wert 800 € (-200 €)")
-            st.write(f"• Bei **-40% Korrektur**: Portfolio-Wert 600 € (-400 €)")
-            st.write(f"• Bei **-60% Krise**: Portfolio-Wert 400 € (-600 €)")
+        pipeline_score = None
 
-        st.caption("OmaKurz™ Scanner v1.7 Pro • Anti-FOMO Analyse-System")
 
-    except Exception as e:
-        st.error(f"Fehler bei der Pro-Forensik-Analyse: {e}")
-        
+        # ====================================================
+        # 10. STORY vs REALITY
+        # ====================================================
+
+        st.markdown("### 📰 Story vs. Reality")
+
+        story_checks = []
+
+        if not pd.isna(rev_growth):
+
+            if rev_growth > 20:
+                story_checks.append(
+                    "🟢 Umsatz bestätigt zumindest einen Teil der Wachstumsstory."
+                )
+
+            elif rev_growth > 0:
+                story_checks.append(
+                    "🟡 Umsatz wächst – aber nicht außergewöhnlich stark."
+                )
+
+            else:
+                story_checks.append(
+                    "🔴 Umsatz bestätigt keine aktuelle Wachstumsstory."
+                )
+
+        if not pd.isna(fcf_current):
+
+            if fcf_current > 0:
+                story_checks.append(
+                    "🟢 FCF liefert reale finanzielle Unterstützung."
+                )
+
+            else:
+                story_c
