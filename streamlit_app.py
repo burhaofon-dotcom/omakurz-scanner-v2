@@ -4,15 +4,15 @@ import pandas as pd
 import numpy as np
 
 st.set_page_config(
-    page_title="OmaKurz™ Scanner v2.2.5",
+    page_title="OmaKurz™ Scanner v2.2.8",
     page_icon="🧭",
     layout="centered"
 )
 
-st.title("🧭 OMAKURZ™ SCANNER v2.2.5")
+st.title("🧭 OMAKURZ™ Scanner v2.2.8")
 st.caption(
-    "Financing Detective • Dilution Delta • Global FX Engine (All Currencies) • "
-    "Kronjuwelen & 1.000€ Beate-Sandler-Geist"
+    "Financing Detective • Dilution Delta • Global FX & Scale Engine • "
+    "Material-Hierarchie & Beate-Sandler-Whitepaper"
 )
 
 col_t1, col_t2 = st.columns([2, 1])
@@ -33,7 +33,7 @@ with col_t2:
 
 
 # ============================================================
-# HILFSFUNKTIONEN & UNIVERSELLE WÄHRUNGS-ENGINE
+# HILFSFUNKTIONEN & GLOBALE FX & SKALIERUNGS-ENGINE
 # ============================================================
 
 def safe_float(value, default=np.nan):
@@ -67,32 +67,14 @@ def clean_series(series):
         return pd.Series(dtype=float)
 
 
-def format_money(value):
-    if pd.isna(value):
-        return "n/a"
-    abs_value = abs(value)
-    if abs_value >= 1:
-        return f"{value:.2f} Mrd."
-    return f"{value * 1000:.0f} Mio."
-
-
 @st.cache_data(ttl=3600)
 def get_global_fx_rate(from_currency):
-    """
-    Holt den Live-Wechselkurs für JEDE Weltwährung zu EUR via yfinance.
-    Cacht den Kurs für 1 Stunde, um API-Calls zu sparen.
-    """
     curr = from_currency.upper().strip()
-    
-    # Sonderfall Britische Pence (GBX) -> Erst zu GBP (Teilung durch 100)
     if curr == "GBX":
-        gbp_rate = get_global_fx_rate("GBP")
-        return 0.01 * gbp_rate
-        
+        return 0.01 * get_global_fx_rate("GBP")
     if curr in ["EUR", ""]:
         return 1.0
     
-    # yfinance Forex-Paar-Konvention (z.B. USDEUR=X, JPYEUR=X, HKDEUR=X)
     pair = f"{curr}EUR=X"
     try:
         fx_ticker = yf.Ticker(pair)
@@ -103,7 +85,6 @@ def get_global_fx_rate(from_currency):
     except Exception:
         pass
     
-    # Fallback für gängige Weltmärkte (falls yfinance-Paar blockiert)
     fallbacks = {
         "USD": 0.92,
         "GBP": 1.17,
@@ -115,6 +96,21 @@ def get_global_fx_rate(from_currency):
         "AUD": 0.61
     }
     return fallbacks.get(curr, 1.0)
+
+
+def format_financials_in_eur(value_in_native, fx_rate):
+    if pd.isna(value_in_native):
+        return "n/a"
+    val_eur = value_in_native * fx_rate
+    val_mrd_eur = val_eur / 1e9
+    
+    abs_val = abs(val_mrd_eur)
+    if abs_val >= 1:
+        return f"{val_mrd_eur:.2f} Mrd. €"
+    elif abs_val >= 0.001:
+        return f"{val_mrd_eur * 1000:.0f} Mio. €"
+    else:
+        return f"{val_eur:.2f} €"
 
 
 def classify_acceleration(series):
@@ -152,7 +148,7 @@ def growth_comparison(start, end):
 # ENGINE
 # ============================================================
 
-if st.button("⚡ OmaKurz v2.2.5 starten"):
+if st.button("⚡ OmaKurz v2.2.8 starten"):
     try:
         stock = yf.Ticker(ticker_symbol)
         info = stock.info
@@ -160,11 +156,9 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
         company_name = info.get("longName", ticker_symbol)
         sector = info.get("sector", "Unbekannt")
         
-        # Währungs-Erkennung & Kurs aus der Welt
         currency = info.get("currency", "USD")
         raw_price = safe_float(info.get("currentPrice", info.get("regularMarketPrice")))
 
-        # Universelle Umrechnung über die Global FX Engine
         if currency == "GBX":
             price_in_native = raw_price / 100.0 if not pd.isna(raw_price) else np.nan
             fx_rate = get_global_fx_rate("GBP")
@@ -172,7 +166,6 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
             price_in_native = raw_price
             fx_rate = get_global_fx_rate(currency)
 
-        # Endgültiger Kurs in Euro für den Beate-Sandler-Geist
         price_in_eur = price_in_native * fx_rate if not pd.isna(price_in_native) else np.nan
 
         total_cash = safe_float(info.get("totalCash"), 0)
@@ -193,7 +186,6 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
         try: balance_sheet = stock.balance_sheet
         except Exception: balance_sheet = pd.DataFrame()
 
-        # ROWS & SERIES
         revenue_row = find_row(financials, ["Total Revenue", "Operating Revenue"])
         ocf_row = find_row(cashflow, ["Operating Cash Flow", "Total Cash From Operating Activities"])
         capex_row = find_row(cashflow, ["Capital Expenditure", "Purchase Of Property Plant And Equipment"])
@@ -210,7 +202,6 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
         has_shares = len(shares_series) >= 2
         has_capex = len(capex_series) > 0
 
-        # EVIDENCE SCORE
         evidence_score = 30
         if has_revenue: evidence_score += 15
         if has_ocf: evidence_score += 15
@@ -218,6 +209,10 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
         if has_shares: evidence_score += 10
         if has_capex: evidence_score += 5
         evidence_score = min(evidence_score, 100)
+
+        # 👑 HIER IST DER FIRMENNAME WIEDER SAUBER PLAZIERT!
+        st.markdown(f"## 🏢 {company_name}")
+        st.caption(f"Ticker: {ticker_symbol} | Sektor: {sector} | Heimatwährung: {currency}")
 
         st.markdown("### 🔍 Evidence & Datenabdeckung")
         e1, e2 = st.columns(2)
@@ -228,10 +223,9 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
         with e2:
             st.write(f"• Aktienhistorie: {'🟢 Vorhanden' if has_shares else '🟡 Nicht ausreichend'}")
             st.write(f"• CapEx: {'🟢 Vorhanden' if has_capex else '🟡 Fehlt'}")
-            st.write("• Pipeline & Primärquellen: ⚪ Aktiv")
-        st.caption(f"Transparenz-/Datenabdeckungsindex: {evidence_score}/100 | Globale Heimatwährung: {currency}")
+            st.write("• Whitepaper-Ready: 🟢 Aktiv")
+        st.caption(f"Transparenz-/Datenabdeckungsindex: {evidence_score}/100")
 
-        # FCF ENGINE
         fcf_series = pd.Series(dtype=float)
         if has_ocf and has_capex:
             try:
@@ -241,22 +235,20 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
             except Exception:
                 pass
 
-        # ACCELERATION
         acceleration = classify_acceleration(revenue_series)
         rev_accel_label = acceleration["label"]
 
-        st.markdown("### ⚡ True Delta Acceleration")
+        st.markdown("### ⚡ True Delta Acceleration (in Mrd. €)")
         if len(revenue_series) >= 4:
-            history_text = " → ".join(format_money(v / 1e9) for v in revenue_series.values)
+            history_text = " → ".join(format_financials_in_eur(v, fx_rate) for v in revenue_series.values)
             st.write(f"**Umsatz:** {history_text}")
             deltas = acceleration["deltas"]
-            delta_text = " → ".join(format_money(v / 1e9) for v in deltas)
+            delta_text = " → ".join(format_financials_in_eur(v, fx_rate) for v in deltas)
             st.write(f"**Jährliche Zuwächse:** {delta_text}")
             st.write(f"**Dynamik:** {rev_accel_label}")
         else:
-            st.warning("Für eine belastbare Beschleunigungsanalyse liegen zu wenige historische Umsatzdaten vor.")
+            st.warning("For eine belastbare Beschleunigungsanalyse liegen zu wenige historische Umsatzdaten vor.")
 
-        # FCF DYNAMIK
         fcf_label = "⚪ Nicht ausreichend"
         fcf_current = fcf_series.iloc[-1] / 1e9 if len(fcf_series) > 0 else np.nan
         if len(fcf_series) >= 3:
@@ -267,7 +259,6 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
                 fcf_label = "🟢 FCF verbessert sich" if fcf_values[-1] > fcf_values[-2] else "🟠 FCF verschlechtert sich"
         st.write(f"**FCF-Dynamik:** {fcf_label}")
 
-        # CAPITAL & DILUTION DETECTIVE
         st.markdown("### 🕵️ Capital & Dilution Detective")
         share_change_pct = np.nan
         revenue_change_pct = np.nan
@@ -294,16 +285,14 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
             dilution_delta_text = "⚪ Keine ausreichende Aktienhistorie."
         st.write(f"**Dilution Delta:** {dilution_delta_text}")
 
-        # FINANCING DETECTIVE
-        st.markdown("### 💰 Finanzierungs-Detektiv")
-        op_cashflow_current = ocf_series.iloc[-1] / 1e9 if len(ocf_series) > 0 else np.nan
+        st.markdown("### 💰 Finanzierungs-Detektiv (in Mrd. €)")
         runway_years = np.nan
         if not pd.isna(fcf_current) and fcf_current < 0 and total_cash > 0:
             runway_years = total_cash / (abs(fcf_current) * 1e9)
 
-        st.write(f"• **Cash:** {format_money(total_cash / 1e9)}")
-        st.write(f"• **Debt:** {format_money(total_debt / 1e9)}")
-        st.write(f"• **Netto-Cash:** {format_money(net_cash / 1e9)}")
+        st.write(f"• **Cash:** {format_financials_in_eur(total_cash, fx_rate)}")
+        st.write(f"• **Debt:** {format_financials_in_eur(total_debt, fx_rate)}")
+        st.write(f"• **Netto-Cash:** {format_financials_in_eur(net_cash, fx_rate)}")
 
         if not pd.isna(runway_years):
             if runway_years < 2: st.error(f"🚨 Rechnerische Cash-Runway nur ca. {runway_years:.1f} Jahre.")
@@ -311,26 +300,26 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
             else: st.success(f"🟢 Rechnerische Cash-Runway ca. {runway_years:.1f} Jahre.")
 
         # ====================================================
-        # 👑 OMA-KERN-URTEIL & BEATE-SANDLER-ZIEL
+        # 👑 OMA-KERN-URTEIL & MATERIAL-HIERARCHIE (WHITEPAPER)
         # ====================================================
-        st.markdown("### 🧓 OmaKurz-Kern-Urteil & Beate-Sandler-Ziel")
+        st.markdown("### 🧓 OmaKurz-Kern-Urteil & Material-Hierarchie")
 
-        oma_category = "🛠️ Muss noch geschliffen werden"
-        oma_color = "warning"
-
-        is_profitable = not pd.isna(profit_margin) and profit_margin > 10
-        is_fcf_strong = not pd.isna(fcf_current) and fcf_current > 0.1
-        is_high_growth = not pd.isna(rev_growth) and rev_growth > 15
+        is_profitable = not pd.isna(profit_margin) and profit_margin > 8
+        is_fcf_strong = not pd.isna(fcf_current) and fcf_current > 0.05
+        is_high_growth = not pd.isna(rev_growth) and rev_growth > 10
 
         if is_profitable and is_fcf_strong:
-            oma_category = "👑 Kronjuwel (Starke Cash-Maschine & Margen)"
+            oma_category = "👑 Kronjuwel / Diamant-Klasse (Starke Cash-Maschine & Margen)"
             oma_color = "success"
-        elif is_high_growth and (pd.isna(profit_margin) or profit_margin < 15):
-            oma_category = "💎 Rohdiamant (Hohes Wachstum, wird operativ geschliffen)"
+        elif is_profitable or (net_cash > 0 and is_high_growth):
+            oma_category = "🛡️ Platin-Anker (Solide, wertbeständige Substanz für die Ewigkeit)"
+            oma_color = "success"
+        elif is_high_growth:
+            oma_category = "⚡ Kupfer-Schmiede (Wachstumswert, im operativen Aufbau)"
             oma_color = "info"
-        elif net_cash > 0 and not is_profitable:
-            oma_category = "🪙 Solides Polster, sucht noch den Durchbruch"
-            oma_color = "info"
+        else:
+            oma_category = "🪨 Rohstein / Ungehobelter Findling (Muss im Prozess noch geschliffen werden)"
+            oma_color = "warning"
 
         if oma_color == "success":
             st.success(f"**Status:** {oma_category}")
@@ -339,7 +328,7 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
         else:
             st.warning(f"**Status:** {oma_category}")
 
-        # Beate-Sandler-Geist mit universeller Weltwährungsumrechnung
+        # Beate-Sandler-Ziel
         if not pd.isna(price_in_eur) and price_in_eur > 0:
             shares_needed = target_position_eur / price_in_eur
             st.metric(
@@ -349,14 +338,25 @@ if st.button("⚡ OmaKurz v2.2.5 starten"):
             )
             st.caption(
                 f"Der Geist von Beate Sandler: Um die Zielposition von {target_position_eur:,.0f} € "
-                f"aufzubauen, werden bei einem umgerechneten Weltmarkt-Kurs von {price_in_eur:.2f} € "
-                f"(aus {price_in_native:,.2f} {currency}) genau {shares_needed:.1f} Anteile benötigt."
+                f"aufzubauen, werden bei einem Kurs von {price_in_eur:.2f} € "
+                f"({price_in_native:,.2f} {currency}) genau {shares_needed:.1f} Anteile benötigt."
             )
         else:
             st.warning("Aktueller Kurs oder globaler Wechselkurs konnte nicht ermittelt werden.")
 
-        st.markdown(f"💬 *„Weltweit im Einsatz, mein Junge! Egal ob Tokio-Yen oder Hongkong-Dollar – jetzt blickt die ganze Familie sofort durch.“*")
+        # Whitepaper-Erklärungsbox für die Familie
+        with st.expander("📖 Whitepaper-Glossar für den Familienrat (Klick zum Öffnen)"):
+            st.markdown("""
+            **Wie liest man den OmaKurz™ Report?**
+            * **👑 Kronjuwel / Diamant:** Die absolute Königsklasse – sprudelt massig Free Cash Flow und hohe Margen. Sofort kaufbereit.
+            * **🛡️ Platin-Anker:** Felsenfest, krisensicher und verlässlich. Unser stabiler Rückhalt im Portfolio.
+            * **⚡ Kupfer-Schmiede:** Dynamisch, leitet Energie und wächst stark, wird im operativen Prozess weiter veredelt.
+            * **🪨 Rohstein (Findling):** Rohmaterial. Zeigt Potenzial, muss aber noch geschliffen werden (höhere Aufmerksamkeit nötig).
+            * **🎯 Beate-Sandler-Ziel:** Gibt exakt vor, wie viele Anteile wir brauchen, um unsere feste Zielgröße (€) zu erreichen – ganz unabhängig von der Landeswährung!
+            """)
+
+        st.markdown(f"💬 *„Jetzt steht der Name wieder dick und fett oben, mein Junge! So weiß jeder im Familienrat sofort, welches Schwergewicht gerade analysiert wird.“*")
 
     except Exception as e:
-        st.error(f"Fehler bei der v2.2.5 Execution: {e}")
-                
+        st.error(f"Fehler bei der v2.2.8 Execution: {e}")
+        
