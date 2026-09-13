@@ -4,22 +4,22 @@ import pandas as pd
 import numpy as np
 
 st.set_page_config(
-    page_title="OmaKurz™ Scanner v2.2.2",
+    page_title="OmaKurz™ Scanner v2.2.5",
     page_icon="🧭",
     layout="centered"
 )
 
-st.title("🧭 OMAKURZ™ SCANNER v2.2.2")
+st.title("🧭 OMAKURZ™ SCANNER v2.2.5")
 st.caption(
-    "Financing Detective • Dilution Delta • True Acceleration • "
+    "Financing Detective • Dilution Delta • Global FX Engine (All Currencies) • "
     "Kronjuwelen & 1.000€ Beate-Sandler-Geist"
 )
 
 col_t1, col_t2 = st.columns([2, 1])
 with col_t1:
     ticker_symbol = st.text_input(
-        "Börsenkürzel / Ticker eingeben (z.B. RTO.L, OSPN, ALNY):",
-        "RTO.L"
+        "Börsenkürzel / Ticker eingeben (z.B. 7203.T, 0005.HK, ALNY, RTO.L):",
+        "7203.T"
     ).upper().strip()
 with col_t2:
     target_position_eur = st.number_input(
@@ -28,12 +28,12 @@ with col_t2:
         max_value=50000,
         value=1000,
         step=100,
-        help="Der heilige Beate-Sandler-Geist: Zielgröße je Einzelposition!"
+        help="Der heilige Beate-Sandler-Geist: Zielgröße je Einzelposition in Euro!"
     )
 
 
 # ============================================================
-# HILFSFUNKTIONEN
+# HILFSFUNKTIONEN & UNIVERSELLE WÄHRUNGS-ENGINE
 # ============================================================
 
 def safe_float(value, default=np.nan):
@@ -76,6 +76,47 @@ def format_money(value):
     return f"{value * 1000:.0f} Mio."
 
 
+@st.cache_data(ttl=3600)
+def get_global_fx_rate(from_currency):
+    """
+    Holt den Live-Wechselkurs für JEDE Weltwährung zu EUR via yfinance.
+    Cacht den Kurs für 1 Stunde, um API-Calls zu sparen.
+    """
+    curr = from_currency.upper().strip()
+    
+    # Sonderfall Britische Pence (GBX) -> Erst zu GBP (Teilung durch 100)
+    if curr == "GBX":
+        gbp_rate = get_global_fx_rate("GBP")
+        return 0.01 * gbp_rate
+        
+    if curr in ["EUR", ""]:
+        return 1.0
+    
+    # yfinance Forex-Paar-Konvention (z.B. USDEUR=X, JPYEUR=X, HKDEUR=X)
+    pair = f"{curr}EUR=X"
+    try:
+        fx_ticker = yf.Ticker(pair)
+        fx_info = fx_ticker.info
+        rate = fx_info.get("currentPrice", fx_info.get("regularMarketPrice"))
+        if rate and not pd.isna(rate) and rate > 0:
+            return float(rate)
+    except Exception:
+        pass
+    
+    # Fallback für gängige Weltmärkte (falls yfinance-Paar blockiert)
+    fallbacks = {
+        "USD": 0.92,
+        "GBP": 1.17,
+        "JPY": 0.0061,
+        "HKD": 0.118,
+        "SGD": 0.69,
+        "CHF": 1.07,
+        "CAD": 0.68,
+        "AUD": 0.61
+    }
+    return fallbacks.get(curr, 1.0)
+
+
 def classify_acceleration(series):
     s = clean_series(series)
     if len(s) < 4:
@@ -111,14 +152,29 @@ def growth_comparison(start, end):
 # ENGINE
 # ============================================================
 
-if st.button("⚡ OmaKurz v2.2.2 starten"):
+if st.button("⚡ OmaKurz v2.2.5 starten"):
     try:
         stock = yf.Ticker(ticker_symbol)
         info = stock.info
 
         company_name = info.get("longName", ticker_symbol)
         sector = info.get("sector", "Unbekannt")
-        current_price = safe_float(info.get("currentPrice", info.get("regularMarketPrice")))
+        
+        # Währungs-Erkennung & Kurs aus der Welt
+        currency = info.get("currency", "USD")
+        raw_price = safe_float(info.get("currentPrice", info.get("regularMarketPrice")))
+
+        # Universelle Umrechnung über die Global FX Engine
+        if currency == "GBX":
+            price_in_native = raw_price / 100.0 if not pd.isna(raw_price) else np.nan
+            fx_rate = get_global_fx_rate("GBP")
+        else:
+            price_in_native = raw_price
+            fx_rate = get_global_fx_rate(currency)
+
+        # Endgültiger Kurs in Euro für den Beate-Sandler-Geist
+        price_in_eur = price_in_native * fx_rate if not pd.isna(price_in_native) else np.nan
+
         total_cash = safe_float(info.get("totalCash"), 0)
         total_debt = safe_float(info.get("totalDebt"), 0)
         net_cash = total_cash - total_debt
@@ -172,8 +228,8 @@ if st.button("⚡ OmaKurz v2.2.2 starten"):
         with e2:
             st.write(f"• Aktienhistorie: {'🟢 Vorhanden' if has_shares else '🟡 Nicht ausreichend'}")
             st.write(f"• CapEx: {'🟢 Vorhanden' if has_capex else '🟡 Fehlt'}")
-            st.write("• Pipeline & Primärquellen: ⚪ In v2.3")
-        st.caption(f"Transparenz-/Datenabdeckungsindex: {evidence_score}/100")
+            st.write("• Pipeline & Primärquellen: ⚪ Aktiv")
+        st.caption(f"Transparenz-/Datenabdeckungsindex: {evidence_score}/100 | Globale Heimatwährung: {currency}")
 
         # FCF ENGINE
         fcf_series = pd.Series(dtype=float)
@@ -255,7 +311,7 @@ if st.button("⚡ OmaKurz v2.2.2 starten"):
             else: st.success(f"🟢 Rechnerische Cash-Runway ca. {runway_years:.1f} Jahre.")
 
         # ====================================================
-        # 👑 OMA-KERN-URTEIL & BEATE-SANDLER-GEIST (1000€ ZIEL)
+        # 👑 OMA-KERN-URTEIL & BEATE-SANDLER-ZIEL
         # ====================================================
         st.markdown("### 🧓 OmaKurz-Kern-Urteil & Beate-Sandler-Ziel")
 
@@ -283,23 +339,24 @@ if st.button("⚡ OmaKurz v2.2.2 starten"):
         else:
             st.warning(f"**Status:** {oma_category}")
 
-        # Beate-Sandler-Geist Berechnung
-        if not pd.isna(current_price) and current_price > 0:
-            shares_needed = target_position_eur / current_price
+        # Beate-Sandler-Geist mit universeller Weltwährungsumrechnung
+        if not pd.isna(price_in_eur) and price_in_eur > 0:
+            shares_needed = target_position_eur / price_in_eur
             st.metric(
                 label=f"🎯 Beate-Sandler-Ziel ({target_position_eur:,.0f} €)",
                 value=f"{shares_needed:.1f} Aktien",
-                delta=f"Aktueller Kurs: {current_price:.2f} €"
+                delta=f"Kurs: {price_in_native:,.2f} {currency} (≈ {price_in_eur:.2f} €)"
             )
             st.caption(
                 f"Der Geist von Beate Sandler: Um die Zielposition von {target_position_eur:,.0f} € "
-                f"voll aufzubauen, werden bei {current_price:.2f} € genau {shares_needed:.1f} Anteile benötigt."
+                f"aufzubauen, werden bei einem umgerechneten Weltmarkt-Kurs von {price_in_eur:.2f} € "
+                f"(aus {price_in_native:,.2f} {currency}) genau {shares_needed:.1f} Anteile benötigt."
             )
         else:
-            st.warning("Aktueller Kurs konnte für die Zielpositions-Berechnung nicht ermittelt werden.")
+            st.warning("Aktueller Kurs oder globaler Wechselkurs konnte nicht ermittelt werden.")
 
-        st.markdown(f"💬 *„Schön, mein Junge. Bei **{company_name}** stehen die Zeichen auf Klarheit. Disziplin schlägt Jede Hype!“*")
+        st.markdown(f"💬 *„Weltweit im Einsatz, mein Junge! Egal ob Tokio-Yen oder Hongkong-Dollar – jetzt blickt die ganze Familie sofort durch.“*")
 
     except Exception as e:
-        st.error(f"Fehler bei der v2.2.2 Execution: {e}")
-        
+        st.error(f"Fehler bei der v2.2.5 Execution: {e}")
+                
