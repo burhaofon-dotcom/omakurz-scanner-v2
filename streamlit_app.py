@@ -8,7 +8,7 @@ import numpy as np
 
 
 # ============================================================
-# OmaKurz™ Scanner v2.3 (Fix für DataFrame-Index)
+# OmaKurz™ Scanner v2.3 (Fix für unhashable Series)
 # ============================================================
 
 st.set_page_config(
@@ -28,7 +28,7 @@ st.markdown(
 
 
 # ============================================================
-# HILFSFUNKTIONEN (Sicherer Index-Check)
+# HILFSFUNKTIONEN
 # ============================================================
 
 def safe_float(value) -> Optional[float]:
@@ -59,11 +59,14 @@ def clean_series(series: Optional[pd.Series]) -> pd.Series:
         return pd.Series(dtype=float)
 
 
-def find_row(df: Optional[pd.DataFrame], candidates) -> Optional[pd.Series]:
+def find_row_name(df: Optional[pd.DataFrame], candidates):
+    """
+    Sucht nach dem Zeilennamen (Index) in einem DataFrame,
+    um den unhashable-Fehler zu umgehen.
+    """
     if df is None or df.empty:
         return None
     
-    # Schutz vor numerischen Indizes (verhindert den Crash aus dem Screenshot)
     try:
         normalized = {
             str(idx).strip().lower(): idx
@@ -80,14 +83,14 @@ def find_row(df: Optional[pd.DataFrame], candidates) -> Optional[pd.Series]:
     for candidate in candidates:
         key = candidate.strip().lower()
         if key in normalized:
-            return clean_series(df.loc[normalized[key]])
+            return normalized[key]
 
     # 2. Teilstring-Suche
     for candidate in candidates:
         key = candidate.strip().lower()
         for normalized_key, original_key in normalized.items():
             if key in normalized_key:
-                return clean_series(df.loc[original_key])
+                return original_key
                 
     return None
 
@@ -157,9 +160,8 @@ def classify_acceleration(series: pd.Series) -> dict:
     return result
 
 
-def analyze_dilution(shares_series: pd.Series, revenue_series: pd.Series) -> dict:
+def analyze_dilution(shares_series: pd.Series) -> dict:
     shares = clean_series(shares_series)
-    revenue = clean_series(revenue_series)
     result = {
         "status": "Nicht ausreichend Daten",
         "message": "Keine belastbare Aktienzahlhistorie.",
@@ -220,11 +222,11 @@ if st.button("⚡ OmaKurz v2.3 starten"):
         try: balance_sheet = stock.balance_sheet
         except Exception: balance_sheet = pd.DataFrame()
 
-        rev_row = find_row(financials, ["Total Revenue", "Operating Revenue"])
-        shares_row = find_row(balance_sheet, ["Ordinary Shares Number", "Share Issued", "Common Stock"])
+        rev_row_name = find_row_name(financials, ["Total Revenue", "Operating Revenue"])
+        shares_row_name = find_row_name(balance_sheet, ["Ordinary Shares Number", "Share Issued", "Common Stock"])
 
-        revenue_series = clean_series(financials.loc[rev_row] if rev_row is not None and rev_row in financials.index else None)
-        shares_series = clean_series(balance_sheet.loc[shares_row] if shares_row is not None and shares_row in balance_sheet.index else None)
+        revenue_series = clean_series(financials.loc[rev_row_name] if rev_row_name is not None and rev_row_name in financials.index else None)
+        shares_series = clean_series(balance_sheet.loc[shares_row_name] if shares_row_name is not None and shares_row_name in balance_sheet.index else None)
 
         st.markdown(f"### 🏢 {company_name}")
         st.caption(f"Ticker: {ticker_input} | Sektor: {sector} | Währung: {currency}")
@@ -233,7 +235,7 @@ if st.button("⚡ OmaKurz v2.3 starten"):
         st.markdown(f"**Umsatz-Beschleunigung:** {accel['status']}")
         st.info(accel['message'])
 
-        dilution = analyze_dilution(shares_series, revenue_series)
+        dilution = analyze_dilution(shares_series)
         st.markdown(f"**Kapital- & Aktienentwicklung:** {dilution['status']}")
         st.write(dilution['message'])
 
@@ -245,4 +247,4 @@ if st.button("⚡ OmaKurz v2.3 starten"):
 
     except Exception as e:
         st.error(f"Fehler bei der Ausführung: {e}")
-    
+            
