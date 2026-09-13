@@ -4,21 +4,32 @@ import pandas as pd
 import numpy as np
 
 st.set_page_config(
-    page_title="OmaKurz™ Scanner v2.2",
+    page_title="OmaKurz™ Scanner v2.2.2",
     page_icon="🧭",
     layout="centered"
 )
 
-st.title("🧭 OMAKURZ™ SCANNER v2.2")
+st.title("🧭 OMAKURZ™ SCANNER v2.2.2")
 st.caption(
     "Financing Detective • Dilution Delta • True Acceleration • "
-    "Pipeline & Story/Reality Framework"
+    "Kronjuwelen & 1.000€ Beate-Sandler-Geist"
 )
 
-ticker_symbol = st.text_input(
-    "Börsenkürzel / Ticker eingeben (z.B. OSPN, ALNY, RTO.L):",
-    "OSPN"
-).upper().strip()
+col_t1, col_t2 = st.columns([2, 1])
+with col_t1:
+    ticker_symbol = st.text_input(
+        "Börsenkürzel / Ticker eingeben (z.B. RTO.L, OSPN, ALNY):",
+        "RTO.L"
+    ).upper().strip()
+with col_t2:
+    target_position_eur = st.number_input(
+        "Zielgröße (€)",
+        min_value=100,
+        max_value=50000,
+        value=1000,
+        step=100,
+        help="Der heilige Beate-Sandler-Geist: Zielgröße je Einzelposition!"
+    )
 
 
 # ============================================================
@@ -27,9 +38,7 @@ ticker_symbol = st.text_input(
 
 def safe_float(value, default=np.nan):
     try:
-        if value is None:
-            return default
-        if pd.isna(value):
+        if value is None or pd.isna(value):
             return default
         return float(value)
     except Exception:
@@ -37,31 +46,22 @@ def safe_float(value, default=np.nan):
 
 
 def find_row(df, candidates):
-    """Findet möglichst robuste Zeilen in yfinance DataFrames."""
     if df is None or df.empty:
         return None
-
     for candidate in candidates:
         for row in df.index:
-            row_str = str(row).lower()
-            if candidate.lower() in row_str:
+            if candidate.lower() in str(row).lower():
                 return row
-
     return None
 
 
 def clean_series(series):
-    """Entfernt fehlende Werte und sortiert chronologisch."""
     if series is None:
         return pd.Series(dtype=float)
-
     try:
         s = pd.to_numeric(series, errors="coerce").dropna()
-
         if len(s) == 0:
             return pd.Series(dtype=float)
-
-        # yfinance liefert meist neuestes Jahr zuerst. Wir wollen alt -> neu.
         return s.iloc[::-1]
     except Exception:
         return pd.Series(dtype=float)
@@ -70,44 +70,18 @@ def clean_series(series):
 def format_money(value):
     if pd.isna(value):
         return "n/a"
-
     abs_value = abs(value)
-
     if abs_value >= 1:
         return f"{value:.2f} Mrd."
     return f"{value * 1000:.0f} Mio."
 
 
 def classify_acceleration(series):
-    """
-    Unterscheidet:
-    - Rückläufig
-    - Beschleunigend
-    - Linear / stabil
-    - Verlangsamend
-    """
     s = clean_series(series)
-
     if len(s) < 4:
-        return {
-            "label": "⚪ Keine ausreichende Historie",
-            "score": 60,
-            "deltas": [],
-            "growth_rates": []
-        }
-
+        return {"label": "⚪ Keine ausreichende Historie", "score": 60, "deltas": []}
     vals = s.values.astype(float)
     deltas = np.diff(vals)
-    growth_rates = []
-
-    for i in range(1, len(vals)):
-        previous = vals[i - 1]
-        if previous != 0:
-            growth_rates.append((vals[i] / previous) - 1)
-        else:
-            growth_rates.append(np.nan)
-
-    # Umsatz selbst fällt
     if vals[-1] < vals[-2]:
         label = "🔴 Rückläufig"
         score = 25
@@ -115,7 +89,6 @@ def classify_acceleration(series):
         delta_change = deltas[-1] - deltas[-2]
         reference = max(abs(deltas[-2]), 1)
         tolerance = reference * 0.05
-
         if delta_change > tolerance:
             label = "🟢 Beschleunigend"
             score = 90
@@ -125,13 +98,7 @@ def classify_acceleration(series):
         else:
             label = "🟠 Verlangsamend"
             score = 45
-
-    return {
-        "label": label,
-        "score": score,
-        "deltas": deltas.tolist(),
-        "growth_rates": growth_rates
-    }
+    return {"label": label, "score": score, "deltas": deltas.tolist()}
 
 
 def growth_comparison(start, end):
@@ -144,30 +111,20 @@ def growth_comparison(start, end):
 # ENGINE
 # ============================================================
 
-if st.button("⚡ OmaKurz v2.2 starten"):
-
+if st.button("⚡ OmaKurz v2.2.2 starten"):
     try:
         stock = yf.Ticker(ticker_symbol)
         info = stock.info
 
         company_name = info.get("longName", ticker_symbol)
         sector = info.get("sector", "Unbekannt")
-
-        current_price = safe_float(
-            info.get("currentPrice", info.get("regularMarketPrice"))
-        )
-        market_cap = safe_float(info.get("marketCap"))
-
-        total_cash = safe_float(info.get("totalCash"))
-        total_debt = safe_float(info.get("totalDebt"))
-
-        if pd.isna(total_cash): total_cash = 0
-        if pd.isna(total_debt): total_debt = 0
+        current_price = safe_float(info.get("currentPrice", info.get("regularMarketPrice")))
+        total_cash = safe_float(info.get("totalCash"), 0)
+        total_debt = safe_float(info.get("totalDebt"), 0)
         net_cash = total_cash - total_debt
 
         rev_growth = safe_float(info.get("revenueGrowth"))
         profit_margin = safe_float(info.get("profitMargins"))
-
         if not pd.isna(rev_growth): rev_growth *= 100
         if not pd.isna(profit_margin): profit_margin *= 100
 
@@ -180,19 +137,15 @@ if st.button("⚡ OmaKurz v2.2 starten"):
         try: balance_sheet = stock.balance_sheet
         except Exception: balance_sheet = pd.DataFrame()
 
-        # ====================================================
-        # 1. EVIDENCE ENGINE
-        # ====================================================
+        # ROWS & SERIES
         revenue_row = find_row(financials, ["Total Revenue", "Operating Revenue"])
         ocf_row = find_row(cashflow, ["Operating Cash Flow", "Total Cash From Operating Activities"])
-        capex_row = find_row(cashflow, ["Capital Expenditure", "Capital Expenditure Reported", "Purchase Of Property Plant And Equipment"])
-        net_income_row = find_row(financials, ["Net Income"])
+        capex_row = find_row(cashflow, ["Capital Expenditure", "Purchase Of Property Plant And Equipment"])
         share_row = find_row(balance_sheet, ["Ordinary Shares Number", "Share Issued"])
 
         revenue_series = clean_series(financials.loc[revenue_row] if revenue_row is not None else None)
         ocf_series = clean_series(cashflow.loc[ocf_row] if ocf_row is not None else None)
         capex_series = clean_series(cashflow.loc[capex_row] if capex_row is not None else None)
-        net_income_series = clean_series(financials.loc[net_income_row] if net_income_row is not None else None)
         shares_series = clean_series(balance_sheet.loc[share_row] if share_row is not None else None)
 
         has_revenue = len(revenue_series) > 0
@@ -201,6 +154,7 @@ if st.button("⚡ OmaKurz v2.2 starten"):
         has_shares = len(shares_series) >= 2
         has_capex = len(capex_series) > 0
 
+        # EVIDENCE SCORE
         evidence_score = 30
         if has_revenue: evidence_score += 15
         if has_ocf: evidence_score += 15
@@ -218,13 +172,10 @@ if st.button("⚡ OmaKurz v2.2 starten"):
         with e2:
             st.write(f"• Aktienhistorie: {'🟢 Vorhanden' if has_shares else '🟡 Nicht ausreichend'}")
             st.write(f"• CapEx: {'🟢 Vorhanden' if has_capex else '🟡 Fehlt'}")
-            st.write("• Pipeline: ⚪ Noch nicht verifiziert")
-            st.write("• Primärquellen: ⚪ Noch nicht verifiziert")
+            st.write("• Pipeline & Primärquellen: ⚪ In v2.3")
         st.caption(f"Transparenz-/Datenabdeckungsindex: {evidence_score}/100")
 
-        # ====================================================
-        # 2. FCF ENGINE
-        # ====================================================
+        # FCF ENGINE
         fcf_series = pd.Series(dtype=float)
         if has_ocf and has_capex:
             try:
@@ -234,12 +185,9 @@ if st.button("⚡ OmaKurz v2.2 starten"):
             except Exception:
                 pass
 
-        # ====================================================
-        # 3. TRUE DELTA ACCELERATION
-        # ====================================================
+        # ACCELERATION
         acceleration = classify_acceleration(revenue_series)
         rev_accel_label = acceleration["label"]
-        accel_score = acceleration["score"]
 
         st.markdown("### ⚡ True Delta Acceleration")
         if len(revenue_series) >= 4:
@@ -252,31 +200,24 @@ if st.button("⚡ OmaKurz v2.2 starten"):
         else:
             st.warning("Für eine belastbare Beschleunigungsanalyse liegen zu wenige historische Umsatzdaten vor.")
 
-        # ====================================================
-        # 4. FCF DYNAMIK
-        # ====================================================
+        # FCF DYNAMIK
         fcf_label = "⚪ Nicht ausreichend"
+        fcf_current = fcf_series.iloc[-1] / 1e9 if len(fcf_series) > 0 else np.nan
         if len(fcf_series) >= 3:
             fcf_values = fcf_series.values
             if fcf_values[-1] < 0:
-                if fcf_values[-2] < fcf_values[-1]: fcf_label = "🟠 Cash Burn bleibt problematisch"
-                else: fcf_label = "🟡 Cash Burn verbessert sich"
+                fcf_label = "🟠 Cash Burn problematisch" if fcf_values[-2] >= fcf_values[-1] else "🟡 Cash Burn verbessert sich"
             else:
-                if fcf_values[-1] > fcf_values[-2]: fcf_label = "🟢 FCF verbessert sich"
-                elif fcf_values[-1] < fcf_values[-2]: fcf_label = "🟠 FCF verschlechtert sich"
-                else: fcf_label = "➡️ FCF ungefähr stabil"
+                fcf_label = "🟢 FCF verbessert sich" if fcf_values[-1] > fcf_values[-2] else "🟠 FCF verschlechtert sich"
         st.write(f"**FCF-Dynamik:** {fcf_label}")
 
-        # ====================================================
-        # 5. CAPITAL & DILUTION DETECTIVE
-        # ====================================================
+        # CAPITAL & DILUTION DETECTIVE
         st.markdown("### 🕵️ Capital & Dilution Detective")
         share_change_pct = np.nan
         revenue_change_pct = np.nan
 
         if has_shares:
-            s_start = shares_series.iloc[0]
-            s_end = shares_series.iloc[-1]
+            s_start, s_end = shares_series.iloc[0], shares_series.iloc[-1]
             share_change_pct = growth_comparison(s_start, s_end)
             st.write(f"**Aktienzahl:** {s_start / 1e6:.1f} Mio. → {s_end / 1e6:.1f} Mio. ({share_change_pct:+.1f}%)")
         else:
@@ -288,31 +229,21 @@ if st.button("⚡ OmaKurz v2.2 starten"):
 
         if not pd.isna(share_change_pct):
             if share_change_pct > 10:
-                if not pd.isna(revenue_change_pct) and revenue_change_pct < share_change_pct:
-                    dilution_delta_text = "🔴 Aktienzahl wächst deutlich schneller als der Umsatz."
-                else:
-                    dilution_delta_text = "🟡 Aktienzahl deutlich gestiegen – wirtschaftliche Gegenleistung prüfen."
+                dilution_delta_text = "🔴 Aktienzahl wächst deutlich schneller als der Umsatz." if (not pd.isna(revenue_change_pct) and revenue_change_pct < share_change_pct) else "🟡 Aktienzahl stark gestiegen – Gegenleistung prüfen."
             elif share_change_pct > 3:
-                dilution_delta_text = "🟡 Aktienzahl moderat gestiegen – Ursache muss geprüft werden."
+                dilution_delta_text = "🟡 Aktienzahl moderat gestiegen – Ursache prüfen."
             else:
                 dilution_delta_text = "🟢 Aktienzahl relativ stabil."
         else:
             dilution_delta_text = "⚪ Keine ausreichende Aktienhistorie."
-
         st.write(f"**Dilution Delta:** {dilution_delta_text}")
 
-        # ====================================================
-        # 6. FINANCING DETECTIVE
-        # ====================================================
+        # FINANCING DETECTIVE
         st.markdown("### 💰 Finanzierungs-Detektiv")
         op_cashflow_current = ocf_series.iloc[-1] / 1e9 if len(ocf_series) > 0 else np.nan
-        fcf_current = fcf_series.iloc[-1] / 1e9 if len(fcf_series) > 0 else np.nan
-
         runway_years = np.nan
-        if not pd.isna(fcf_current) and fcf_current < 0:
-            cash_burn = abs(fcf_current)
-            if total_cash > 0:
-                runway_years = total_cash / (cash_burn * 1e9)
+        if not pd.isna(fcf_current) and fcf_current < 0 and total_cash > 0:
+            runway_years = total_cash / (abs(fcf_current) * 1e9)
 
         st.write(f"• **Cash:** {format_money(total_cash / 1e9)}")
         st.write(f"• **Debt:** {format_money(total_debt / 1e9)}")
@@ -324,13 +255,51 @@ if st.button("⚡ OmaKurz v2.2 starten"):
             else: st.success(f"🟢 Rechnerische Cash-Runway ca. {runway_years:.1f} Jahre.")
 
         # ====================================================
-        # 7. PIPELINE & STORY VS REALITY
+        # 👑 OMA-KERN-URTEIL & BEATE-SANDLER-GEIST (1000€ ZIEL)
         # ====================================================
-        st.markdown("### 🧬 Pipeline & Story vs. Reality")
-        st.info("v2.2 bewertet harte Finanzfakten. Pipeline-Phasen folgen in v2.3.")
-        
-        st.success(f"OmaKurz v2.2 Scan für **{company_name}** erfolgreich abgeschlossen!")
+        st.markdown("### 🧓 OmaKurz-Kern-Urteil & Beate-Sandler-Ziel")
+
+        oma_category = "🛠️ Muss noch geschliffen werden"
+        oma_color = "warning"
+
+        is_profitable = not pd.isna(profit_margin) and profit_margin > 10
+        is_fcf_strong = not pd.isna(fcf_current) and fcf_current > 0.1
+        is_high_growth = not pd.isna(rev_growth) and rev_growth > 15
+
+        if is_profitable and is_fcf_strong:
+            oma_category = "👑 Kronjuwel (Starke Cash-Maschine & Margen)"
+            oma_color = "success"
+        elif is_high_growth and (pd.isna(profit_margin) or profit_margin < 15):
+            oma_category = "💎 Rohdiamant (Hohes Wachstum, wird operativ geschliffen)"
+            oma_color = "info"
+        elif net_cash > 0 and not is_profitable:
+            oma_category = "🪙 Solides Polster, sucht noch den Durchbruch"
+            oma_color = "info"
+
+        if oma_color == "success":
+            st.success(f"**Status:** {oma_category}")
+        elif oma_color == "info":
+            st.info(f"**Status:** {oma_category}")
+        else:
+            st.warning(f"**Status:** {oma_category}")
+
+        # Beate-Sandler-Geist Berechnung
+        if not pd.isna(current_price) and current_price > 0:
+            shares_needed = target_position_eur / current_price
+            st.metric(
+                label=f"🎯 Beate-Sandler-Ziel ({target_position_eur:,.0f} €)",
+                value=f"{shares_needed:.1f} Aktien",
+                delta=f"Aktueller Kurs: {current_price:.2f} €"
+            )
+            st.caption(
+                f"Der Geist von Beate Sandler: Um die Zielposition von {target_position_eur:,.0f} € "
+                f"voll aufzubauen, werden bei {current_price:.2f} € genau {shares_needed:.1f} Anteile benötigt."
+            )
+        else:
+            st.warning("Aktueller Kurs konnte für die Zielpositions-Berechnung nicht ermittelt werden.")
+
+        st.markdown(f"💬 *„Schön, mein Junge. Bei **{company_name}** stehen die Zeichen auf Klarheit. Disziplin schlägt Jede Hype!“*")
 
     except Exception as e:
-        st.error(f"Fehler bei der v2.2 Execution: {e}")
-    
+        st.error(f"Fehler bei der v2.2.2 Execution: {e}")
+        
