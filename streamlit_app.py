@@ -1,91 +1,279 @@
+import math
+from typing import Optional, Tuple
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 
+
+# ============================================================
+# OmaKurz™ Scanner v2.3
+# ============================================================
+# Grundprinzip:
+#
+#   🏛️ OMA       = Substanz
+#   🚀 KURZ       = Zukunft
+#   ⚡ DYNAMIK    = Beschleunigung / Verlangsamung
+#   💰 FINANZ     = Kapitalbedarf / Finanzierung
+#   🧬 PIPELINE   = Entwicklung / Zukunftsprogramme
+#   🔍 EVIDENZ    = Datenqualität / Belegstärke
+#   💎 QUALITÄT   = Qualitätsklasse
+#
+# Wichtig:
+# - Kein Buy/Hold/Sell
+# - Keine Kursziel-Magie
+# - Keine automatische Kaufempfehlung
+# - Qualität != Bewertung
+# - Datenlücken werden sichtbar gemacht
+# - Aussagen werden nicht stärker formuliert als die Datenlage
+# ============================================================
+
+
 st.set_page_config(
-    page_title="OmaKurz™ Scanner v2.2.9",
-    page_icon="🧭",
-    layout="centered"
+    page_title="OmaKurz™ Scanner v2.3",
+    page_icon="🧓",
+    layout="wide"
 )
-
-st.title("🧭 OMAKURZ™ Scanner v2.2.9")
-st.caption(
-    "Financing Detective • Dilution Delta • Global FX & Scale Engine • "
-    "Erweitertes Familien-Whitepaper & Glossar"
-)
-
-col_t1, col_t2 = st.columns([2, 1])
-with col_t1:
-    ticker_symbol = st.text_input(
-        "Börsenkürzel / Ticker eingeben (z.B. 7203.T, 0005.HK, ALNY, RTO.L):",
-        "7203.T"
-    ).upper().strip()
-with col_t2:
-    target_position_eur = st.number_input(
-        "Zielgröße (€)",
-        min_value=100,
-        max_value=50000,
-        value=1000,
-        step=100,
-        help="Der heilige Beate-Sandler-Geist: Zielgröße je Einzelposition in Euro!"
-    )
 
 
 # ============================================================
-# HILFSFUNKTIONEN & GLOBALE FX & SKALIERUNGS-ENGINE
+# STYLING
 # ============================================================
 
-def safe_float(value, default=np.nan):
+st.markdown(
+    """
+    <style>
+    .main {
+        padding-top: 1rem;
+    }
+
+    .omakurz-card {
+        padding: 1rem 1.2rem;
+        border-radius: 14px;
+        border: 1px solid rgba(128,128,128,0.25);
+        margin-bottom: 1rem;
+    }
+
+    .small-muted {
+        color: #777;
+        font-size: 0.85rem;
+    }
+
+    .big-score {
+        font-size: 2.2rem;
+        font-weight: 700;
+    }
+
+    .warning-box {
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(200,120,0,0.35);
+        background: rgba(255,180,0,0.08);
+    }
+
+    .danger-box {
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(200,0,0,0.35);
+        background: rgba(255,0,0,0.06);
+    }
+
+    .success-box {
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(0,140,70,0.35);
+        background: rgba(0,180,80,0.06);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# HILFSFUNKTIONEN
+# ============================================================
+
+def safe_float(value) -> Optional[float]:
+    """
+    Konvertiert Werte möglichst robust in float.
+    Gibt None zurück, wenn keine sinnvolle Zahl vorliegt.
+    """
     try:
-        if value is None or pd.isna(value):
-            return default
-        return float(value)
+        if value is None:
+            return None
+
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            if value.empty:
+                return None
+            value = value.iloc[0]
+
+        value = float(value)
+
+        if not np.isfinite(value):
+            return None
+
+        return value
+
     except Exception:
-        return default
+        return None
 
 
-def find_row(df, candidates):
+def clean_series(series: Optional[pd.Series]) -> pd.Series:
+    """
+    Bereinigt eine historische Zeitreihe:
+    - numerisch
+    - NaN entfernt
+    - nach Datum sortiert
+    """
+    if series is None:
+        return pd.Series(dtype=float)
+
+    try:
+        result = pd.to_numeric(series, errors="coerce")
+        result = result.dropna()
+        result = result.sort_index()
+        return result
+    except Exception:
+        return pd.Series(dtype=float)
+
+
+def find_row(df: Optional[pd.DataFrame], candidates) -> Optional[pd.Series]:
+    """
+    Sucht robust nach einer Finanzzeile.
+    Die Suche erfolgt sowohl exakt als auch über Teilstrings.
+    """
     if df is None or df.empty:
         return None
+
+    normalized = {
+        str(idx).strip().lower(): idx
+        for idx in df.index
+    }
+
+    # 1. Exakte Suche
     for candidate in candidates:
-        for row in df.index:
-            if candidate.lower() in str(row).lower():
-                return row
+        key = candidate.strip().lower()
+
+        if key in normalized:
+            return clean_series(df.loc[normalized[key]])
+
+    # 2. Teilstring-Suche
+    for candidate in candidates:
+        key = candidate.strip().lower()
+
+        for normalized_key, original_key in normalized.items():
+            if key in normalized_key:
+                return clean_series(df.loc[original_key])
+
     return None
 
 
-def clean_series(series):
-    if series is None:
-        return pd.Series(dtype=float)
-    try:
-        s = pd.to_numeric(series, errors="coerce").dropna()
-        if len(s) == 0:
-            return pd.Series(dtype=float)
-        return s.iloc[::-1]
-    except Exception:
-        return pd.Series(dtype=float)
+def latest_value(series: Optional[pd.Series]) -> Optional[float]:
+    """
+    Gibt den jüngsten Wert einer Zeitreihe zurück.
+    """
+    s = clean_series(series)
 
+    if s.empty:
+        return None
+
+    return safe_float(s.iloc[-1])
+
+
+def first_value(series: Optional[pd.Series]) -> Optional[float]:
+    """
+    Gibt den ältesten Wert einer Zeitreihe zurück.
+    """
+    s = clean_series(series)
+
+    if s.empty:
+        return None
+
+    return safe_float(s.iloc[0])
+
+
+def percent_change(old, new) -> Optional[float]:
+    """
+    Prozentuale Veränderung.
+    Nicht definiert bei altem Wert = 0.
+    """
+    old = safe_float(old)
+    new = safe_float(new)
+
+    if old is None or new is None:
+        return None
+
+    if old == 0:
+        return None
+
+    return (new / old - 1.0) * 100.0
+
+
+def format_eur(value: Optional[float]) -> str:
+    """
+    Geldwerte in EUR.
+    """
+    if value is None:
+        return "n/a"
+
+    abs_value = abs(value)
+
+    if abs_value >= 1_000_000_000:
+        return f"{value / 1_000_000_000:,.2f} Mrd. €"
+
+    if abs_value >= 1_000_000:
+        return f"{value / 1_000_000:,.2f} Mio. €"
+
+    if abs_value >= 1_000:
+        return f"{value / 1_000:,.1f} Tsd. €"
+
+    return f"{value:,.2f} €"
+
+
+def format_number(value: Optional[float]) -> str:
+    if value is None:
+        return "n/a"
+
+    return f"{value:,.0f}".replace(",", ".")
+
+
+def format_percent(value: Optional[float]) -> str:
+    if value is None:
+        return "n/a"
+
+    return f"{value:+.1f} %"
+
+
+# ============================================================
+# FX
+# ============================================================
 
 @st.cache_data(ttl=3600)
-def get_global_fx_rate(from_currency):
-    curr = from_currency.upper().strip()
-    if curr == "GBX":
-        return 0.01 * get_global_fx_rate("GBP")
-    if curr in ["EUR", ""]:
+def get_global_fx_rate(currency: str) -> float:
+    """
+    Liefert näherungsweise den EUR-Wert einer Einheit der
+    Unternehmenswährung.
+
+    Wichtig:
+    Diese Funktion dient primär der Darstellung.
+    Historische Wachstums-/Beschleunigungsberechnungen
+    werden weiterhin bevorzugt in der Originalwährung
+    durchgeführt, damit Wechselkurse nicht mit operativer
+    Beschleunigung verwechselt werden.
+    """
+
+    currency = (currency or "EUR").upper()
+
+    if currency == "EUR":
         return 1.0
-    
-    pair = f"{curr}EUR=X"
-    try:
-        fx_ticker = yf.Ticker(pair)
-        fx_info = fx_ticker.info
-        rate = fx_info.get("currentPrice", fx_info.get("regularMarketPrice"))
-        if rate and not pd.isna(rate) and rate > 0:
-            return float(rate)
-    except Exception:
-        pass
-    
-    fallbacks = {
+
+    if currency == "GBX":
+        gbp_rate = get_global_fx_rate("GBP")
+        return 0.01 * gbp_rate
+
+    fallback = {
         "USD": 0.92,
         "GBP": 1.17,
         "JPY": 0.0061,
@@ -93,288 +281,503 @@ def get_global_fx_rate(from_currency):
         "SGD": 0.69,
         "CHF": 1.07,
         "CAD": 0.68,
-        "AUD": 0.61
+        "AUD": 0.61,
     }
-    return fallbacks.get(curr, 1.0)
 
-
-def format_financials_in_eur(value_in_native, fx_rate):
-    if pd.isna(value_in_native):
-        return "n/a"
-    val_eur = value_in_native * fx_rate
-    val_mrd_eur = val_eur / 1e9
-    
-    abs_val = abs(val_mrd_eur)
-    if abs_val >= 1:
-        return f"{val_mrd_eur:.2f} Mrd. €"
-    elif abs_val >= 0.001:
-        return f"{val_mrd_eur * 1000:.0f} Mio. €"
-    else:
-        return f"{val_eur:.2f} €"
-
-
-def classify_acceleration(series):
-    s = clean_series(series)
-    if len(s) < 4:
-        return {"label": "⚪ Keine ausreichende Historie", "score": 60, "deltas": []}
-    vals = s.values.astype(float)
-    deltas = np.diff(vals)
-    if vals[-1] < vals[-2]:
-        label = "🔴 Rückläufig"
-        score = 25
-    else:
-        delta_change = deltas[-1] - deltas[-2]
-        reference = max(abs(deltas[-2]), 1)
-        tolerance = reference * 0.05
-        if delta_change > tolerance:
-            label = "🟢 Beschleunigend"
-            score = 90
-        elif abs(delta_change) <= tolerance:
-            label = "➡️ Wachsend, aber ungefähr linear"
-            score = 70
-        else:
-            label = "🟠 Verlangsamend"
-            score = 45
-    return {"label": label, "score": score, "deltas": deltas.tolist()}
-
-
-def growth_comparison(start, end):
-    if pd.isna(start) or pd.isna(end) or start == 0:
-        return np.nan
-    return ((end / start) - 1) * 100
-
-
-# ============================================================
-# ENGINE
-# ============================================================
-
-if st.button("⚡ OmaKurz v2.2.9 starten"):
     try:
-        stock = yf.Ticker(ticker_symbol)
-        info = stock.info
+        ticker = yf.Ticker(f"{currency}EUR=X")
+        quote = ticker.history(period="5d")
 
-        company_name = info.get("longName", ticker_symbol)
-        sector = info.get("sector", "Unbekannt")
-        
-        currency = info.get("currency", "USD")
-        raw_price = safe_float(info.get("currentPrice", info.get("regularMarketPrice")))
+        if not quote.empty:
+            value = safe_float(quote["Close"].dropna().iloc[-1])
 
-        if currency == "GBX":
-            price_in_native = raw_price / 100.0 if not pd.isna(raw_price) else np.nan
-            fx_rate = get_global_fx_rate("GBP")
+            if value is not None and value > 0:
+                return value
+
+    except Exception:
+        pass
+
+    return fallback.get(currency, 1.0)
+
+
+# ============================================================
+# BESCHLEUNIGUNG
+# ============================================================
+
+def classify_acceleration(series: pd.Series) -> dict:
+    """
+    Unterscheidet:
+      - rückläufig
+      - wachsend, aber nicht beschleunigend
+      - beschleunigend
+      - verlangsamend
+
+    Wichtig:
+    Beschleunigung bedeutet hier nicht einfach Wachstum.
+
+    Beispiel:
+      Umsatz:
+      100 -> 120 -> 145 -> 180
+
+      Deltas:
+      +20 -> +25 -> +35
+
+      Die absoluten Zuwächse werden größer.
+      Das ist Beschleunigung.
+
+    Die Berechnung erfolgt in der Originalwährung.
+    """
+
+    s = clean_series(series)
+
+    result = {
+        "status": "Nicht ausreichend Daten",
+        "score": 0,
+        "deltas": [],
+        "delta_changes": [],
+        "growth_rates": [],
+        "message": "Für eine belastbare Beschleunigungsanalyse fehlen historische Daten."
+    }
+
+    if len(s) < 3:
+        return result
+
+    values = s.values.astype(float)
+
+    deltas = np.diff(values)
+
+    # Wachstumsraten nur berechnen, wenn die Basis sinnvoll ist.
+    growth_rates = []
+
+    for old, new in zip(values[:-1], values[1:]):
+        if old != 0:
+            growth_rates.append((new / old - 1.0) * 100.0)
         else:
-            price_in_native = raw_price
-            fx_rate = get_global_fx_rate(currency)
+            growth_rates.append(np.nan)
 
-        price_in_eur = price_in_native * fx_rate if not pd.isna(price_in_native) else np.nan
+    delta_changes = np.diff(deltas)
 
-        total_cash = safe_float(info.get("totalCash"), 0)
-        total_debt = safe_float(info.get("totalDebt"), 0)
-        net_cash = total_cash - total_debt
+    latest_value_ = values[-1]
 
-        rev_growth = safe_float(info.get("revenueGrowth"))
-        profit_margin = safe_float(info.get("profitMargins"))
-        if not pd.isna(rev_growth): rev_growth *= 100
-        if not pd.isna(profit_margin): profit_margin *= 100
+    # --------------------------------------------------------
+    # 1. Umsatz / Kennzahl fällt tatsächlich
+    # --------------------------------------------------------
+    if latest_value_ < values[-2]:
+        result["status"] = "🔴 Rückläufig"
+        result["score"] = 20
+        result["message"] = (
+            "Die jüngste Kennzahl liegt unter dem Vorjahreswert. "
+            "Das ist keine Beschleunigung, sondern ein Rückgang."
+        )
 
-        try: financials = stock.financials
-        except Exception: financials = pd.DataFrame()
+    # --------------------------------------------------------
+    # 2. Zuwächse werden größer
+    # --------------------------------------------------------
+    elif len(delta_changes) >= 1 and delta_changes[-1] > 0:
+        result["status"] = "🟢 Beschleunigend"
+        result["score"] = 90
+        result["message"] = (
+            "Die absoluten Zuwächse werden größer. "
+            "Das spricht für eine operative Beschleunigung."
+        )
 
-        try: cashflow = stock.cashflow
-        except Exception: cashflow = pd.DataFrame()
+    # --------------------------------------------------------
+    # 3. Zuwachs bleibt positiv, wird aber kleiner
+    # --------------------------------------------------------
+    elif len(delta_changes) >= 1 and delta_changes[-1] < 0:
+        result["status"] = "🟠 Verlangsamend"
+        result["score"] = 50
+        result["message"] = (
+            "Die Kennzahl wächst weiterhin, aber der zusätzliche "
+            "Zuwachs wird kleiner."
+        )
 
-        try: balance_sheet = stock.balance_sheet
-        except Exception: balance_sheet = pd.DataFrame()
+    # --------------------------------------------------------
+    # 4. Zuwachs ungefähr konstant
+    # --------------------------------------------------------
+    else:
+        result["status"] = "➡️ Wachsend, nicht beschleunigend"
+        result["score"] = 65
+        result["message"] = (
+            "Die Kennzahl wächst, aber die Zuwächse zeigen "
+            "keine klare zusätzliche Beschleunigung."
+        )
 
-        revenue_row = find_row(financials, ["Total Revenue", "Operating Revenue"])
-        ocf_row = find_row(cashflow, ["Operating Cash Flow", "Total Cash From Operating Activities"])
-        capex_row = find_row(cashflow, ["Capital Expenditure", "Purchase Of Property Plant And Equipment"])
-        share_row = find_row(balance_sheet, ["Ordinary Shares Number", "Share Issued"])
+    result["deltas"] = deltas.tolist()
+    result["delta_changes"] = delta_changes.tolist()
+    result["growth_rates"] = growth_rates
 
-        revenue_series = clean_series(financials.loc[revenue_row] if revenue_row is not None else None)
-        ocf_series = clean_series(cashflow.loc[ocf_row] if ocf_row is not None else None)
-        capex_series = clean_series(cashflow.loc[capex_row] if capex_row is not None else None)
-        shares_series = clean_series(balance_sheet.loc[share_row] if share_row is not None else None)
+    return result
 
-        has_revenue = len(revenue_series) > 0
-        has_ocf = len(ocf_series) > 0
-        has_hist = len(revenue_series) >= 3
-        has_shares = len(shares_series) >= 2
-        has_capex = len(capex_series) > 0
 
-        evidence_score = 30
-        if has_revenue: evidence_score += 15
-        if has_ocf: evidence_score += 15
-        if has_hist: evidence_score += 15
-        if has_shares: evidence_score += 10
-        if has_capex: evidence_score += 5
-        evidence_score = min(evidence_score, 100)
+# ============================================================
+# MARGENTREND
+# ============================================================
 
-        st.markdown(f"## 🏢 {company_name}")
-        st.caption(f"Ticker: {ticker_symbol} | Sektor: {sector} | Heimatwährung: {currency}")
+def calculate_margin_series(
+    revenue_series: pd.Series,
+    net_income_series: pd.Series
+) -> pd.Series:
+    """
+    Berechnet historische Nettomargen.
+    Nur gemeinsame Zeitpunkte werden verwendet.
+    """
 
-        st.markdown("### 🔍 Evidence & Datenabdeckung")
-        e1, e2 = st.columns(2)
-        with e1:
-            st.write(f"• Umsatzdaten: {'🟢 Vorhanden' if has_revenue else '🔴 Fehlt'}")
-            st.write(f"• Historie: {'🟢 3+ Jahre' if has_hist else '🟡 Begrenzt'}")
-            st.write(f"• OCF: {'🟢 Vorhanden' if has_ocf else '🔴 Fehlt'}")
-        with e2:
-            st.write(f"• Aktienhistorie: {'🟢 Vorhanden' if has_shares else '🟡 Nicht ausreichend'}")
-            st.write(f"• CapEx: {'🟢 Vorhanden' if has_capex else '🟡 Fehlt'}")
-            st.write("• Whitepaper-Ready: 🟢 Aktiv")
-        st.caption(f"Transparenz-/Datenabdeckungsindex: {evidence_score}/100")
+    revenue = clean_series(revenue_series)
+    net_income = clean_series(net_income_series)
 
-        fcf_series = pd.Series(dtype=float)
-        if has_ocf and has_capex:
-            try:
-                combined = pd.concat([ocf_series.rename("OCF"), capex_series.rename("CapEx")], axis=1).dropna()
-                if not combined.empty:
-                    fcf_series = combined["OCF"] + combined["CapEx"]
-            except Exception:
-                pass
+    if revenue.empty or net_income.empty:
+        return pd.Series(dtype=float)
 
-        acceleration = classify_acceleration(revenue_series)
-        rev_accel_label = acceleration["label"]
+    common_dates = revenue.index.intersection(net_income.index)
 
-        st.markdown("### ⚡ True Delta Acceleration (in Mrd. €)")
-        if len(revenue_series) >= 4:
-            history_text = " → ".join(format_financials_in_eur(v, fx_rate) for v in revenue_series.values)
-            st.write(f"**Umsatz (historische Jahreswerte):** {history_text}")
-            deltas = acceleration["deltas"]
-            delta_text = " → ".join(format_financials_in_eur(v, fx_rate) for v in deltas)
-            st.write(f"**Jährliche Zuwächse (Schritte von Jahr zu Jahr):** {delta_text}")
-            st.write(f"**Dynamik-Trend:** {rev_accel_label}")
-        else:
-            st.warning("Für eine belastbare Beschleunigungsanalyse liegen zu wenige historische Umsatzdaten vor.")
+    if len(common_dates) == 0:
+        return pd.Series(dtype=float)
 
-        fcf_label = "⚪ Nicht ausreichend"
-        fcf_current = fcf_series.iloc[-1] / 1e9 if len(fcf_series) > 0 else np.nan
-        if len(fcf_series) >= 3:
-            fcf_values = fcf_series.values
-            if fcf_values[-1] < 0:
-                fcf_label = "🟠 Cash Burn problematisch" if fcf_values[-2] >= fcf_values[-1] else "🟡 Cash Burn verbessert sich"
-            else:
-                fcf_label = "🟢 FCF verbessert sich" if fcf_values[-1] > fcf_values[-2] else "🟠 FCF verschlechtert sich"
-        st.write(f"**FCF-Dynamik:** {fcf_label}")
+    margins = {}
 
-        st.markdown("### 🕵️ Capital & Dilution Detective")
-        share_change_pct = np.nan
-        revenue_change_pct = np.nan
+    for date in common_dates:
+        rev = safe_float(revenue.loc[date])
+        ni = safe_float(net_income.loc[date])
 
-        if has_shares:
-            s_start, s_end = shares_series.iloc[0], shares_series.iloc[-1]
-            share_change_pct = growth_comparison(s_start, s_end)
-            st.write(f"**Aktienzahl:** {s_start / 1e6:.1f} Mio. → {s_end / 1e6:.1f} Mio. ({share_change_pct:+.1f}%)")
-        else:
-            st.write("🟡 Keine ausreichende Aktienhistorie verfügbar.")
+        if rev is None or ni is None or rev == 0:
+            continue
 
-        if len(revenue_series) >= 2:
-            revenue_change_pct = growth_comparison(revenue_series.iloc[0], revenue_series.iloc[-1])
-            st.write(f"**Umsatz über denselben Zeitraum:** {revenue_change_pct:+.1f}%")
+        margins[date] = ni / rev * 100.0
 
-        if not pd.isna(share_change_pct):
-            if share_change_pct > 10:
-                dilution_delta_text = "🔴 Aktienzahl wächst deutlich schneller als der Umsatz." if (not pd.isna(revenue_change_pct) and revenue_change_pct < share_change_pct) else "🟡 Aktienzahl stark gestiegen – Gegenleistung prüfen."
-            elif share_change_pct > 3:
-                dilution_delta_text = "🟡 Aktienzahl moderat gestiegen – Ursache prüfen."
-            else:
-                dilution_delta_text = "🟢 Aktienzahl relativ stabil."
-        else:
-            dilution_delta_text = "⚪ Keine ausreichende Aktienhistorie."
-        st.write(f"**Dilution Delta:** {dilution_delta_text}")
+    return pd.Series(margins).sort_index()
 
-        st.markdown("### 💰 Finanzierungs-Detektiv (in Mrd. €)")
-        runway_years = np.nan
-        if not pd.isna(fcf_current) and fcf_current < 0 and total_cash > 0:
-            runway_years = total_cash / (abs(fcf_current) * 1e9)
 
-        st.write(f"• **Cash:** {format_financials_in_eur(total_cash, fx_rate)}")
-        st.write(f"• **Debt:** {format_financials_in_eur(total_debt, fx_rate)}")
-        st.write(f"• **Netto-Cash:** {format_financials_in_eur(net_cash, fx_rate)}")
+def classify_margin_trend(margin_series: pd.Series) -> dict:
+    """
+    Klassifiziert die Margenentwicklung.
+    """
 
-        if not pd.isna(runway_years):
-            if runway_years < 2: st.error(f"🚨 Rechnerische Cash-Runway nur ca. {runway_years:.1f} Jahre.")
-            elif runway_years < 4: st.warning(f"🟡 Rechnerische Cash-Runway ca. {runway_years:.1f} Jahre.")
-            else: st.success(f"🟢 Rechnerische Cash-Runway ca. {runway_years:.1f} Jahre.")
+    s = clean_series(margin_series)
 
-        # ====================================================
-        # OMA-KERN-URTEIL & MATERIAL-HIERARCHIE
-        # ====================================================
-        st.markdown("### 🧓 OmaKurz-Kern-Urteil & Material-Hierarchie")
+    result = {
+        "status": "Nicht ausreichend Daten",
+        "score": 50,
+        "message": "Keine belastbare Margen-Zeitreihe verfügbar."
+    }
 
-        is_profitable = not pd.isna(profit_margin) and profit_margin > 8
-        is_fcf_strong = not pd.isna(fcf_current) and fcf_current > 0.05
-        is_high_growth = not pd.isna(rev_growth) and rev_growth > 10
+    if len(s) < 2:
+        return result
 
-        if is_profitable and is_fcf_strong:
-            oma_category = "👑 Kronjuwel / Diamant-Klasse (Starke Cash-Maschine & Margen)"
-            oma_color = "success"
-        elif is_profitable or (net_cash > 0 and is_high_growth):
-            oma_category = "🛡️ Platin-Anker (Solide, wertbeständige Substanz für die Ewigkeit)"
-            oma_color = "success"
-        elif is_high_growth:
-            oma_category = "⚡ Kupfer-Schmiede (Wachstumswert, im operativen Aufbau)"
-            oma_color = "info"
-        else:
-            oma_category = "🪨 Rohstein / Ungehobelter Findling (Muss im Prozess noch geschliffen werden)"
-            oma_color = "warning"
+    latest = safe_float(s.iloc[-1])
+    previous = safe_float(s.iloc[-2])
 
-        if oma_color == "success":
-            st.success(f"**Status:** {oma_category}")
-        elif oma_color == "info":
-            st.info(f"**Status:** {oma_category}")
-        else:
-            st.warning(f"**Status:** {oma_category}")
+    if latest is None or previous is None:
+        return result
 
-        # Beate-Sandler-Ziel
-        if not pd.isna(price_in_eur) and price_in_eur > 0:
-            shares_needed = target_position_eur / price_in_eur
-            st.metric(
-                label=f"🎯 Beate-Sandler-Ziel ({target_position_eur:,.0f} €)",
-                value=f"{shares_needed:.1f} Aktien",
-                delta=f"Kurs: {price_in_native:,.2f} {currency} (≈ {price_in_eur:.2f} €)"
+    change = latest - previous
+
+    if change > 2:
+        result["status"] = "🟢 Margen verbessern sich"
+        result["score"] = 85
+        result["message"] = (
+            "Die Nettomarge ist zuletzt spürbar gestiegen."
+        )
+
+    elif change < -2:
+        result["status"] = "🟠 Margen verschlechtern sich"
+        result["score"] = 35
+        result["message"] = (
+            "Die Nettomarge ist zuletzt spürbar gefallen."
+        )
+
+    else:
+        result["status"] = "➡️ Margen weitgehend stabil"
+        result["score"] = 65
+        result["message"] = (
+            "Die Nettomarge zeigt zuletzt keine starke Veränderung."
+        )
+
+    return result
+
+
+# ============================================================
+# FINANZIELLE ZEITREIHEN
+# ============================================================
+
+def calculate_fcf(
+    operating_cashflow: Optional[pd.Series],
+    capex: Optional[pd.Series]
+) -> pd.Series:
+    """
+    Free Cashflow = Operating Cashflow + CapEx
+
+    CapEx ist in Cashflow-Statements normalerweise negativ.
+    Deshalb wird bewusst NICHT OCF - CapEx gerechnet.
+
+    Wenn eine der beiden Reihen fehlt, wird kein künstlicher
+    FCF erfunden.
+    """
+
+    ocf = clean_series(operating_cashflow)
+    capex_series = clean_series(capex)
+
+    if ocf.empty or capex_series.empty:
+        return pd.Series(dtype=float)
+
+    common_dates = ocf.index.intersection(capex_series.index)
+
+    if len(common_dates) == 0:
+        return pd.Series(dtype=float)
+
+    fcf_values = {}
+
+    for date in common_dates:
+        ocf_value = safe_float(ocf.loc[date])
+        capex_value = safe_float(capex_series.loc[date])
+
+        if ocf_value is None or capex_value is None:
+            continue
+
+        fcf_values[date] = ocf_value + capex_value
+
+    return pd.Series(fcf_values).sort_index()
+
+
+def classify_fcf_dynamics(fcf_series: pd.Series) -> dict:
+    """
+    Klassifiziert die FCF-Dynamik.
+
+    Bei Wechsel von negativ auf positiv oder umgekehrt wird
+    keine irreführende prozentuale Wachstumsrate berechnet.
+    """
+
+    s = clean_series(fcf_series)
+
+    result = {
+        "status": "Nicht ausreichend Daten",
+        "score": 50,
+        "message": "Keine ausreichende FCF-Zeitreihe."
+    }
+
+    if len(s) < 2:
+        return result
+
+    latest = safe_float(s.iloc[-1])
+    previous = safe_float(s.iloc[-2])
+
+    if latest is None or previous is None:
+        return result
+
+    if latest > 0 and previous <= 0:
+        result["status"] = "🟢 FCF dreht positiv"
+        result["score"] = 90
+        result["message"] = (
+            "Der Free Cashflow ist zuletzt in den positiven Bereich gedreht."
+        )
+
+    elif latest > 0 and previous > 0 and latest > previous:
+        result["status"] = "🟢 FCF verbessert sich"
+        result["score"] = 85
+        result["message"] = (
+            "Der positive Free Cashflow hat sich gegenüber dem Vorjahr verbessert."
+        )
+
+    elif latest > 0 and previous > 0 and latest < previous:
+        result["status"] = "🟠 FCF schwächer"
+        result["score"] = 50
+        result["message"] = (
+            "Der Free Cashflow bleibt positiv, ist aber gegenüber dem Vorjahr gefallen."
+        )
+
+    elif latest < 0 and previous < 0 and latest < previous:
+        result["status"] = "🔴 FCF-Belastung steigt"
+        result["score"] = 20
+        result["message"] = (
+            "Der negative Free Cashflow ist zuletzt noch negativer geworden."
+        )
+
+    else:
+        result["status"] = "➡️ FCF uneinheitlich"
+        result["score"] = 45
+        result["message"] = (
+            "Die FCF-Entwicklung lässt sich derzeit nicht eindeutig als Trend einordnen."
+        )
+
+    return result
+
+
+# ============================================================
+# EVIDENCE ENGINE
+# ============================================================
+
+def calculate_evidence(
+    revenue_series: pd.Series,
+    ocf_series: pd.Series,
+    capex_series: pd.Series,
+    shares_series: pd.Series,
+    balance_sheet_available: bool,
+    cashflow_available: bool,
+    financials_available: bool
+) -> dict:
+    """
+    Evidenzscore.
+
+    Der Score bedeutet NICHT:
+    "Diese Aktie ist gut."
+
+    Er bedeutet:
+    "Wie viel belastbare Finanzinformation kann der Scanner
+     aktuell technisch auswerten?"
+
+    Primärquellen werden durch yfinance NICHT automatisch
+    verifiziert.
+    """
+
+    score = 0
+    reasons = []
+    warnings = []
+
+    revenue = clean_series(revenue_series)
+    ocf = clean_series(ocf_series)
+    capex = clean_series(capex_series)
+    shares = clean_series(shares_series)
+
+    if not revenue.empty:
+        score += 20
+        reasons.append("Umsatzdaten vorhanden")
+    else:
+        warnings.append("Keine verwertbare Umsatzhistorie")
+
+    if not ocf.empty:
+        score += 15
+        reasons.append("Operativer Cashflow vorhanden")
+    else:
+        warnings.append("Kein verwertbarer operativer Cashflow")
+
+    if len(revenue) >= 3:
+        score += 15
+        reasons.append("Mindestens 3 historische Umsatzperioden")
+
+    elif len(revenue) >= 2:
+        score += 8
+        warnings.append("Nur kurze Umsatzhistorie")
+
+    else:
+        warnings.append("Zu wenig Umsatzhistorie")
+
+    if not shares.empty:
+        score += 15
+        reasons.append("Historische Aktienzahl verfügbar")
+    else:
+        warnings.append("Historische Aktienzahl nicht zuverlässig verfügbar")
+
+    if not capex.empty:
+        score += 10
+        reasons.append("CapEx vorhanden")
+    else:
+        warnings.append("CapEx fehlt – FCF kann dadurch unvollständig sein")
+
+    if financials_available:
+        score += 5
+        reasons.append("GuV-Daten verfügbar")
+
+    if cashflow_available:
+        score += 5
+        reasons.append("Cashflow-Daten verfügbar")
+
+    if balance_sheet_available:
+        score += 5
+        reasons.append("Bilanzdaten verfügbar")
+
+    # Kein künstliches Aufblasen.
+    score = min(score, 100)
+
+    if score >= 85:
+        level = "🟢 Gute Datengrundlage"
+    elif score >= 65:
+        level = "🟡 Brauchbare, aber lückenhafte Datengrundlage"
+    elif score >= 45:
+        level = "🟠 Schwache Datengrundlage"
+    else:
+        level = "🔴 Scanner versteht den Fall noch nicht ausreichend"
+
+    return {
+        "score": score,
+        "level": level,
+        "reasons": reasons,
+        "warnings": warnings,
+        "primary_sources_verified": False
+    }
+
+
+# ============================================================
+# CAPITAL & DILUTION DETECTIVE
+# ============================================================
+
+def analyze_dilution(
+    shares_series: pd.Series,
+    revenue_series: pd.Series,
+    fcf_series: pd.Series
+) -> dict:
+    """
+    Aktienzahlentwicklung != automatisch Verwässerung.
+
+    Eine steigende Aktienzahl kann entstehen durch:
+      - Kapitalerhöhung
+      - Aktienvergütung
+      - Akquisitionen
+      - Optionen / RSUs
+      - Convertibles
+      - andere Kapitalmaßnahmen
+      - technische / historische Datenänderungen
+
+    Deshalb sprechen wir bewusst von:
+    "Aktienzahlentwicklung" und "Verwässerungsdruck",
+    solange die Ursache nicht bekannt ist.
+    """
+
+    shares = clean_series(shares_series)
+    revenue = clean_series(revenue_series)
+    fcf = clean_series(fcf_series)
+
+    result = {
+        "status": "Nicht ausreichend Daten",
+        "message": "Keine belastbare Aktienzahlhistorie.",
+        "share_change_pct": None,
+        "revenue_change_pct": None,
+        "fcf_change_pct": None,
+        "share_start": None,
+        "share_end": None
+    }
+
+    if len(shares) < 2:
+        return result
+
+    share_start = safe_float(shares.iloc[0])
+    share_end = safe_float(shares.iloc[-1])
+
+    share_change = percent_change(share_start, share_end)
+
+    result["share_start"] = share_start
+    result["share_end"] = share_end
+    result["share_change_pct"] = share_change
+
+    if len(revenue) >= 2:
+        result["revenue_change_pct"] = percent_change(
+            revenue.iloc[0],
+            revenue.iloc[-1]
+        )
+
+    if len(fcf) >= 2:
+        # Nur darstellen, nicht blind als Wachstum interpretieren.
+        old_fcf = safe_float(fcf.iloc[0])
+        new_fcf = safe_float(fcf.iloc[-1])
+
+        if (
+            old_fcf is not None
+            and new_fcf is not None
+            and old_fcf > 0
+        ):
+            result["fcf_change_pct"] = percent_change(
+                old_fcf,
+                new_fcf
             )
-            st.caption(
-                f"Der Geist von Beate Sandler: Um die Zielposition von {target_position_eur:,.0f} € "
-                f"aufzubauen, werden bei einem Kurs von {price_in_eur:.2f} € "
-                f"({price_in_native:,.2f} {currency}) genau {shares_needed:.1f} Anteile benötigt."
-            )
-        else:
-            st.warning("Aktueller Kurs oder globaler Wechselkurs konnte nicht ermittelt werden.")
 
-        # ====================================================
-        # ERWEITERTES WHITEPAPER-GLOSSAR FÜR DEN FAMILIENRAT
-        # ====================================================
-        with st.expander("📖 Whitepaper-Glossar für den Familienrat (Klick zum Öffnen)"):
-            st.markdown("""
-            **Wie liest man den OmaKurz™ Report? (Erklärung für alle Einsteiger)**
-
-            * **👑 Material-Hierarchie (Die Anlageklassen):**
-              * **👑 Kronjuwel / Diamant:** Die absolute Königsklasse – sprudelt massig Free Cash Flow und hohe Margen. Sofort kaufbereit.
-              * **🛡️ Platin-Anker:** Felsenfest, krisensicher und verlässlich. Unser stabiler Rückhalt im Portfolio.
-              * **⚡ Kupfer-Schmiede:** Dynamisch, leitet Energie und wächst stark, wird im operativen Prozess weiter veredelt.
-              * **🪨 Rohstein (Findling):** Rohmaterial. Zeigt Potenzial, muss aber noch geschliffen werden (höhere Aufmerksamkeit nötig).
-
-            * **⚡ True Delta Acceleration (Die Beschleunigungs-Engine):**
-              * **Umsatz (historische Jahreswerte):** Zeigt die chronologische Kette der Jahresumsätze (von links nach rechts über die letzten Jahre).
-              * **Jährliche Zuwächse:** Zeigt die *absoluten Sprünge* von einem Jahr zum nächsten (plus oder minus). 
-              * **Dynamik-Trend (Punkt-Farbe):** Misst, ob das Wachstumtempo von Jahr zu Jahr schneller wird (🟢 beschleunigend) oder sich verlangsamt/rückläufig ist (🔴 rot). *Wichtig:* Ein roter Punkt bei reifen Riesen ist kein Fehler, sondern oft das Zeichen für ein stabiles, gesundes und verlässliches Reifegeschäft ohne Hype!
-
-            * **🕵️ Capital & Dilution Detective (Verwässerungs-Check):**
-              * Vergleicht, wie sich die **Aktienanzahl** über die Jahre entwickelt hat im Verhältnis zum Umsatzwachstum. 
-              * 🟢 = Aktienanzahl stabil oder schrumpft (Super für Aktionäre!). 
-              * 🔴 = Aktienanzahl wächst stark (Frisches Kapital wurde über neue Aktien beschafft, was bestehende Anteile verwässert).
-
-            * **💰 Finanzierungs-Detektiv & Cash-Runway:**
-              * **Cash-Runway:** Zeigt bei Verlust- oder Biotech-Unternehmen (wie jungen Rohsteinen), wie viele Jahre das vorhandene Geld (Cash) noch reicht, bevor neues Kapital her muss. Alles unter 2 Jahren ist ein rotes Warnsignal!
-
-            * **🎯 Beate-Sandler-Ziel:** 
-              * Gibt exakt vor, wie viele Anteile wir brauchen, um unsere feste Zielgröße (z.B. 1.000 €) unabhängig von der Landeswährung zu erreichen.
-            """)
-
-        st.markdown(f"💬 *„Jetzt ist das Glossar komplett glattgezogen, mein Junge! Da blickt jetzt wirklich jeder im Familienrat sofort durch.“*")
-
-    except Exception as e:
-        st.error(f"Fehler bei der v2.2.9 Execution: {e}")
-    
+    if share_change is None:
+        return 
