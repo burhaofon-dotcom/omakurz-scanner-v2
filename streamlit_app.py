@@ -100,6 +100,22 @@ def find_row(
         return None
 
 
+return None
+
+
+def latest_value(series) -> Optional[float]:
+    """Liefert den jüngsten numerischen Wert einer Zeitreihe."""
+    cleaned = clean_series(series)
+
+    if cleaned.empty:
+        return None
+
+    try:
+        return safe_float(cleaned.iloc[-1])
+    except Exception:
+        return None
+
+
 def first_value(series) -> Optional[float]:
     """Liefert den ältesten numerischen Wert einer Zeitreihe."""
     cleaned = clean_series(series)
