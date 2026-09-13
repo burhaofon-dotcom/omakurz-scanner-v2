@@ -1,3 +1,4 @@
+
 # ============================================================
 # OmaKurz™ Scanner
 # Datei: omakurz_helpers.py
@@ -86,7 +87,9 @@ def find_row(
                 return dataframe.loc[index]
 
     return None
-    def latest_value(series) -> Optional[float]:
+
+
+def latest_value(series) -> Optional[float]:
     """Liefert den jüngsten numerischen Wert einer Zeitreihe."""
     cleaned = clean_series(series)
 
@@ -207,7 +210,9 @@ def format_eur(
     )
 
     return f"{formatted} €"
-    def format_currency(
+
+
+def format_currency(
     value: Optional[float],
     currency: str = "EUR",
     decimals: int = 0,
@@ -331,7 +336,9 @@ def normalize_currency(
     }
 
     return mapping.get(value, value)
-    @st.cache_data(ttl=3600, show_spinner=False)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_global_fx_rate(
     from_currency: str,
     to_currency: str = "EUR",
@@ -469,7 +476,9 @@ def get_previous_shares(
         return safe_float(shares.iloc[-2])
     except Exception:
         return None
-        def get_revenue_series(
+
+
+def get_revenue_series(
     income_statement: Optional[pd.DataFrame],
 ) -> pd.Series:
     """Holt die Umsatz-Zeitreihe."""
@@ -651,7 +660,9 @@ def get_debt_series(
         return pd.Series(dtype=float)
 
     return clean_series(row)
-    def get_financing_cash_flow_series(
+
+
+def get_financing_cash_flow_series(
     cashflow_statement: Optional[pd.DataFrame],
 ) -> pd.Series:
     """Holt den Cashflow aus Finanzierungstätigkeit."""
@@ -791,7 +802,9 @@ def calculate_acceleration_series(
     ).dropna()
 
     return acceleration
-    def get_ticker_info(
+
+
+def get_ticker_info(
     ticker: yf.Ticker,
 ) -> dict:
     """Holt die Unternehmensinformationen von yfinance."""
@@ -931,4 +944,5 @@ def has_meaningful_series(
 
 def safe_text(
     value,
-    fallback: st
+    fallback: str = "n. a.",
+) -
