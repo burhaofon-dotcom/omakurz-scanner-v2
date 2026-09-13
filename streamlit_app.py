@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import streamlit as st
+import omakurz_analysis
 import yfinance as yf
 
 
