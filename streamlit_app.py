@@ -944,4 +944,13 @@ def has_meaningful_series(
 def safe_text(
     value,
     fallback: str = "n. a.",
-) -
+) -> str:
+    """Gibt einen sicheren Textstring zurück oder den Fallback-Wert."""
+    if value is None:
+        return fallback
+    try:
+        text = str(value).strip()
+    except Exception:
+        return fallback
+    return text if text else fallback
+    
