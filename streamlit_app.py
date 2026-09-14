@@ -6,17 +6,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# Hilfsfunktionen importieren (falls vorhanden)
-try:
-    from omakurz_helpers import safe_float, clean_series
-except ImportError:
-    # Fallback, falls Helfer nicht direkt greifen
-    def safe_float(val):
-        try:
-            return float(val)
-        except:
-            return 0.0
-
 # Seiten-Konfiguration
 st.set_page_config(
     page_title="Oma-Kurz-Kompass",
@@ -35,7 +24,7 @@ und Ray Kurzweil (exponentielle Zukunftstechnologien, Zukunfts-Turbo).*
 st.sidebar.header("🎛️ Scanner-Steuerung")
 ticker_input = st.sidebar.text_input("Ticker-Symbol eingeben (z. B. ALNY, SONY, SAP, CLX):", value="SONY").upper()
 
-# Analyse-Button in der Sidebar oder Hauptseite
+# Analyse-Button in der Sidebar
 analysis_triggered = st.sidebar.button("🚀 Aktie analysieren & bewerten")
 
 # Hauptbereich
@@ -64,11 +53,11 @@ if analysis_triggered and ticker_input:
             st.markdown("---")
             st.markdown("### 🔍 Kompass-Fazit & Bewertung")
             
-            # Beispielhafte Logik für die Einordnung (wird später vollautomatisiert)
+            # Logik für die Einordnung
             if "Technology" in sector or "Healthcare" in sector or ticker_input in ["ALNY", "SONY", "SAP"]:
                 kategorie = "✨ Geschliffener Diamant mit Zukunfts-Turbo"
                 erklaerung = "Vereint technologische Innovationskraft / Zukunfts-Plattform mit echtem wirtschaftlichem Fundament."
-            elif "Consumer" in sector or "Utilities" in sector:
+            elif "Consumer" in sector or "Utilities" in sector or ticker_input in ["CLX", "K"]:
                 kategorie = "💎 Omas Kronjuwel / Solide Cash-Kuh"
                 erklaerung = "Klassischer Substanzwert mit starkem Burggraben, ideal für den langfristigen Vermögensaufbau und verlässliche Stabilität."
             else:
