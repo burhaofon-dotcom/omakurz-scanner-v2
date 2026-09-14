@@ -951,6 +951,7 @@ def safe_text(
     try:
         text = str(value).strip()
     except Exception:
-        return fallback
+            return text if text else fallback
+        
     return text if text else fallback
     
