@@ -137,7 +137,7 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                 st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
                 
             except Exception as e:
-                st.error(f5"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
+                st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 
 else:
     # --- PRE-IPO & PRIVATE UNICORN FAKTENCHECK-MODUS ---
