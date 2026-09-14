@@ -972,7 +972,7 @@ if ticker_symbol:
         currency = get_company_currency(t)
         
         if price:
-            st.success(Aktueller Kurs: {format_currency(price, currency)})
+            st.success(f"Aktueller Kurs: {format_currency(price, currency)}")
         else:
             st.warning("Konnte keinen aktuellen Kurs abrufen.")
     except Exception as e:
