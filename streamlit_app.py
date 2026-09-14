@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Version mit Branchen-Spaten-Logik & Pre-IPO / Private Unicorn Faktencheck-Modus
+# Version mit Branchen-Spaten-Logik, Pre-IPO Faktencheck & Watchlist
 # ==========================================
 
 import streamlit as st
@@ -14,14 +14,32 @@ st.set_page_config(
     layout="wide"
 )
 
+# Session State für die Watchlist initialisieren
+if 'watchlist' not in st.session_state:
+    st.session_state.watchlist = []
+
 # Titel & Philosophie
 st.title("🧭 Oma-Kurz-Kompass")
 st.markdown("""
 *Der ultimative Anlage-Kompass nach Beate Sander (solide Fundamentaldaten, Substanz, Dividenden) 
-und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung) – inklusive Pre-IPO- & Bullshit-Detektor.*
+und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung) – inklusive Watchlist.*
 """)
 
 st.markdown("---")
+
+# --- SEITENLEISTE FÜR WATCHLIST ---
+st.sidebar.title("📌 Deine Watchlist")
+if st.session_state.watchlist:
+    for item in st.session_state.watchlist:
+        st.sidebar.write(f"• {item}")
+    if st.sidebar.button("🗑️ Watchlist leeren"):
+        st.session_state.watchlist = []
+        st.rerun()
+else:
+    st.sidebar.info("Noch keine Werte gespeichert.")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("*Entwickelt für den professionellen 36-Monats-Fokus.*")
 
 # --- HAUPTSEITEN-BEDIENUNG ---
 st.subheader("🔍 Analyse-Modus wählen")
@@ -73,7 +91,6 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     sander_punkte = 10
                     kurzweil_punkte = 15
                     gesamt_punkte = 25  
-                    spaten_status = "🚨 Hype-Ruine / Pleitegefahr"
                 else:
                     if sector in ["Healthcare", "Technology"] and profit_margins < 0:
                         sander_marge = 3 
@@ -105,7 +122,6 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
                     kurzweil_punkte = summe_kurzweil * 2 
                     
-                    # Realismus-Bremse: Niemals glatte 100 Punkte, echte Welt hat Reibungsverluste
                     gesamt_punkte = min(94, sander_punkte + kurzweil_punkte)
                     
                 pcol1, pcol2, pcol3 = st.columns(3)
@@ -136,17 +152,26 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     ausblick = "Weder überzeugende Substanz noch starker Zukunfts-Turbo."
                 st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
                 
+                # Watchlist Button
+                watch_label = f"{name} ({ticker_input}) - {gesamt_punkte}/100 Pkt"
+                if st.button("📌 Zur Watchlist hinzufügen"):
+                    if watch_label not in st.session_state.watchlist:
+                        st.session_state.watchlist.append(watch_label)
+                        st.success("Erfolgreich zur Watchlist hinzugefügt! (Siehe Sidebar links)")
+                    else:
+                        st.warning("Bereits auf der Watchlist.")
+                
             except Exception as e:
                 st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 
 else:
     # --- PRE-IPO & PRIVATE UNICORN FAKTENCHECK-MODUS ---
     st.markdown("### 🦄 Pre-IPO / Private Unicorn Web-Faktenchecker")
-    st.markdown("Hier durchleuchtet der Kompass private Giganten (wie *Anthropic*) oder historische Blenden (wie *Theranos*) anhand von harten Fakten, Investoren-Backing und dem Bullshit-Detektor.")
+    st.markdown("Hier durchleuchtet der Kompass private Giganten (wie *Anthropic* oder *OpenAI*) oder historische Blenden (wie *Theranos*) anhand von harten Fakten und dem Bullshit-Detektor.")
     
     col_u1, col_u2 = st.columns(2)
     with col_u1:
-        unicorn_name = st.text_input("Unternehmensname eingeben:", value="Anthropic")
+        unicorn_name = st.text_input("Unternehmensname eingeben:", value="OpenAI")
         unicorn_sector = st.selectbox("Spaten / Bereich:", ["KI & Foundation Models (High-Speed)", "Biotech & MedTech (Forschung)", "Fintech & Enterprise Software", "Hardware & Robotics"])
     with col_u2:
         evidence_level = st.selectbox("Fundierungsgrad & Partner-Status:", [
@@ -158,17 +183,16 @@ else:
     if st.button("🔍 Pre-IPO-Faktencheck starten", use_container_width=True):
         with st.spinner(f"Analysiere Web-Spuren, Partner und risikoreiche Bluffer-Muster für {unicorn_name}..."):
             
-            # Objektive algorithmische Bewertung statt willkürlicher Regler
             if "Top-Tier" in evidence_level:
                 sub_score = 40
-                turbo_score = 48  # Realismus-Bremse greift
+                turbo_score = 48  
                 verdict = "💎 **Das kommende Kronjuwel (Top-Kandidat für den Börsengang)!**"
                 comment = f"{unicorn_name} zeigt massive technologische Wucht, echte Großkonzern-Validierung und skaliert im Markt. Sobald das Papier handelbar ist, ein absoluter Pflichtkandidat für die Watchlist."
             elif "Wachstumsphase" in evidence_level:
                 sub_score = 28
                 turbo_score = 42
                 verdict = "⛏️ **Spannender Rohdiamant (High-Risk / High-Reward)**"
-                comment = f"Klassisches Pre-IPO-Unicorn. Starker Zukunfts-Turbo, aber hoher Kapitalbedarf. Den Cash-Burn und die Konkurrenzsituation genau im Auge behalten."
+                comment = f"Klassisches Pre-IPO-Unicorn. Starker Zukunfts-Turbo, aber hoher Kapitalbedarf. Den Cash-Burn genau im Auge behalten."
             else:
                 sub_score = 8
                 turbo_score = 15
@@ -192,6 +216,15 @@ else:
             
             st.markdown("### 🧭 Kompass-Fazit des Web-Scanners")
             st.info(f"{verdict}\n\n{comment}")
+            
+            # Watchlist Button für Unicorns
+            unicorn_label = f"🦄 {unicorn_name} (Pre-IPO) - {total_unicorn_score}/100 Pkt"
+            if st.button("📌 Pre-IPO zur Watchlist hinzufügen"):
+                if unicorn_label not in st.session_state.watchlist:
+                    st.session_state.watchlist.append(unicorn_label)
+                    st.success("Erfolgreich zur Watchlist hinzugefügt! (Siehe Sidebar links)")
+                else:
+                    st.warning("Bereits auf der Watchlist.")
 
 # --- GLOSSAR AM ENDE DER SEITE ---
 st.markdown("---")
@@ -199,5 +232,5 @@ with st.expander("📖 Das 10-Säulen-Modell & Spaten-Logik (Klicken zum Öffnen
     st.markdown("""
     * **Säulen 1–5 (Beate Sander):** Gewinnmarge, faires KGV, Burggraben, Cashflow, gesunde Bilanz (mit Biotech-Ausnahme für F&E).
     * **Säulen 6–10 (Ray Kurzweil):** Branchenspezifische Zukunfts-Spaten (Tech, Healthcare, Finanzen, Konsum), Skalierbarkeit und echte Wertschöpfung.
-    * **Pre-IPO-Modus:** Analysiert private Unicorns objektiv über Web-Fakten, Investoren-Backing und schützt vor Theranos-Blendern.
+    * **Pre-IPO-Modus & Watchlist:** Speichert geprüfte Aktien und private Unicorns direkt in deiner persönlichen Session-Watchlist ab.
     """)
