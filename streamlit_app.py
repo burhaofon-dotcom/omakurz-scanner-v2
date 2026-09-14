@@ -929,10 +929,11 @@ def count_available_values(
     return count
 
 
-def hseries: Optional[pd.Series],as_meaningful_series(
+def has_meaningful_series(
     series: Optional[pd.Series],
     minimum_values: int = 2,
 ) -> bool:
+    
     """Prüft, ob eine Zeitreihe genügend Datenpunkte besitzt."""
     if series is None:
         return False
@@ -945,4 +946,14 @@ def hseries: Optional[pd.Series],as_meaningful_series(
 def safe_text(
     value,
     fallback: str = "n. a.",
-) 
+) -> str:
+    """Gibt einen sicheren Textwert zurück."""
+    if value is None:
+        return fallback
+
+    try:
+        text = str(value).strip()
+    except Exception:
+        return fallback
+
+    return text if text else fallback
