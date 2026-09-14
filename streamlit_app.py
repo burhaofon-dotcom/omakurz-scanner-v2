@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Version mit dem 10-Säulen-Punktesystem (Sander & Kurzweil)
+# Version mit integriertem "Nikola-Schutzschild" (Bullshit-Detektor)
 # ==========================================
 
 import streamlit as st
@@ -28,7 +28,7 @@ st.subheader("🔍 Aktie für den Kompass auswählen")
 col_input1, col_input2 = st.columns([3, 1])
 
 with col_input1:
-    ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, ALNY, CLX):", value="SONY").upper()
+    ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, NKLA, 8306.T):", value="SONY").upper()
 
 with col_input2:
     st.write("") 
@@ -51,6 +51,11 @@ if analysis_triggered and ticker_input:
             market_cap = info.get('marketCap', 0)
             profit_margins = info.get('profit_margins', info.get('profitMargins', 0.0))
             
+            # --- DER NIKOLA-SCHUTZSCHILD (BULLSHIT-DETEKTOR) ---
+            # Prüfen, ob fundamentale Daten komplett fehlen oder das Unternehmen klinisch tot / Pleite ist
+            is_data_missing = (not market_cap or market_cap == 0 or price == 0.0 or not profit_margins)
+            is_bleeder = (profit_margins and profit_margins < -0.5) # Extremes Verbrennen von Geld
+            
             st.markdown("---")
             st.subheader(f"Ergebnis für: {name} ({ticker_input})")
             
@@ -67,33 +72,34 @@ if analysis_triggered and ticker_input:
                 
             st.markdown("### 📊 Das 10-Säulen-Punktesystem (Max. 100 Punkte)")
             
-            # --- DIE OMA-KURZ-FORMEL (10 Säulen, je 1-5 Punkte) ---
-            # Beispielhafte algorithmische Ableitung aus den Live-Daten & Sektoren
-            
-            # 1. Beate Sander Säulen (Fundament & Substanz)
-            sander_marge = 5 if profit_margins and profit_margins > 0.15 else (3 if profit_margins and profit_margins > 0 else 1)
-            sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 25 else (2 if pe_ratio and pe_ratio >= 25 else 3)
-            sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "CLX", "MSFT", "AAPL"] else 3
-            sander_cashflow = 4 if profit_margins and profit_margins > 0.05 else 2
-            sander_bilanz = 4 # Solider Standard-Wert für etablierte Werte
-            
-            summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz # Max 25 (wir skalieren auf 50)
-            sander_punkte = summe_sander * 2 
-            
-            # 2. Ray Kurzweil Säulen (Zukunfts-Turbo & Skalierung)
-            is_future_sector = sector in ["Technology", "Healthcare", "Communication Services", "Semiconductors"]
-            kurzweil_sektor = 5 if is_future_sector else 2
-            kurzweil_skalierung = 5 if is_future_sector else 3
-            kurzweil_reale_loesung = 5 if profit_margins and profit_margins > 0 else 3 # Kein reiner Verlust-Hype
-            kurzweil_innovation = 4
-            kurzweil_jobs_markt = 4
-            
-            summe_kurzweil = kurzweil_sektor + kurzweil_skalierung + kurzweil_reale_loesung + kurzweil_innovation + kurzweil_jobs_markt # Max 25 (skaliert auf 50)
-            kurzweil_punkte = summe_kurzweil * 2
-            
-            # Gesamtpunktzahl (0 - 100)
-            gesamt_punkte = sander_punkte + kurzweil_punkte
-            
+            if is_data_missing or is_bleeder:
+                # HARTE STRAFE DURCH DEN BULLSHIT-DETEKTOR
+                sander_punkte = 10
+                kurzweil_punkte = 15
+                gesamt_punkte = 25  # Komplette Abstrafung unter 40 Punkte
+            else:
+                # Reguläre Berechnung für gesunde Unternehmen
+                sander_marge = 5 if profit_margins > 0.15 else (3 if profit_margins > 0 else 1)
+                sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 25 else (2 if pe_ratio >= 25 else 3)
+                sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T"] else 3
+                sander_cashflow = 4 if profit_margins > 0.05 else 2
+                sander_bilanz = 4 
+                
+                summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
+                sander_punkte = summe_sander * 2 
+                
+                is_future_sector = sector in ["Technology", "Healthcare", "Communication Services", "Semiconductors", "Financial Services"]
+                kurzweil_sektor = 5 if is_future_sector else 2
+                kurzweil_skalierung = 5 if is_future_sector else 3
+                kurzweil_reale_loesung = 5 if profit_margins > 0 else 3 
+                kurzweil_innovation = 4
+                kurzweil_jobs_markt = 4
+                
+                summe_kurzweil = kurzweil_sektor + kurzweil_skalierung + kurzweil_reale_loesung + kurzweil_innovation + kurzweil_jobs_markt
+                kurzweil_punkte = summe_kurzweil * 2
+                
+                gesamt_punkte = sander_punkte + kurzweil_punkte
+                
             # Punkte-Anzeige in UI
             pcol1, pcol2, pcol3 = st.columns(3)
             with pcol1:
@@ -119,8 +125,8 @@ if analysis_triggered and ticker_input:
                 status = "⛏️ Rohdiamant / Genauer Prüffall"
                 ausblick = "Spannender Ansatz, aber entweder hinkt die Substanz oder der Zukunftsfaktor ist noch nicht sauber monetarisiert. Genauer Blick auf die nächsten Quartale nötig."
             else:
-                status = "🚨 Hype-Ruine / Zu hohes Risiko"
-                ausblick = "Achtung: Erfüllt weder Omas Substanz-Kriterien noch Kurzweils saubere Wertschöpfung. Finger weg."
+                status = "🚨 Hype-Ruine / Blender-Verdacht (Stresstest ausgelöst!)"
+                ausblick = "Achtung: Entweder fehlen essenzielle Fundamentaldaten völlig oder das Geschäftsmodell verbrennt nur Geld ohne reale Wertschöpfung. Sofortige Hype-Warnung!"
                 
             st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
             
@@ -137,5 +143,5 @@ with st.expander("📖 Das 10-Säulen-Modell (Klicken zum Öffnen)"):
     st.markdown("""
     * **Säulen 1–5 (Beate Sander):** Gewinnmarge, faires KGV, Burggraben/Krisenfestigkeit, Cashflow/Dividendenstärke, gesunde Bilanz.
     * **Säulen 6–10 (Ray Kurzweil):** Exponentieller Zukunftssektor, echte technologische Skalierbarkeit, reale Wertschöpfung (keine reine Burn-Rate), Innovationskraft, nachhaltiger Marktwert.
-    * **Der 36-Monats-Horizont:** Schaut über das kurzfristige Rauschen hinweg und bewertet die Ertragskraft im Takt des technologischen Fortschritts.
+    * **Der Stresstest-Filter:** Erkennt fehlende Bilanzen und Blender-Buden automatisch und zieht den Score sofort in den Keller.
     """)
