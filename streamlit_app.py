@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Version mit integriertem "Nikola-Schutzschild" (Bullshit-Detektor)
+# Version mit automatischer Branchen-Spaten-Logik & Stresstest-Schutzschild
 # ==========================================
 
 import streamlit as st
@@ -18,17 +18,17 @@ st.set_page_config(
 st.title("🧭 Oma-Kurz-Kompass")
 st.markdown("""
 *Der ultimative Anlage-Kompass nach Beate Sander (solide Fundamentaldaten, Substanz, Dividenden) 
-und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung).*
+und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung) – mit branchenspezifischer Spaten-Logik.*
 """)
 
 st.markdown("---")
 
 # --- HAUPTSEITEN-BEDIENUNG ---
-st.subheader("🔍 Aktie für den Kompass auswählen")
+st.subheader("🔍 Aktie oder IPO-Kandidat für den Kompass auswählen")
 col_input1, col_input2 = st.columns([3, 1])
 
 with col_input1:
-    ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, NKLA, 8306.T):", value="SONY").upper()
+    ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, NKLA, KYG4790P1037):", value="SONY").upper()
 
 with col_input2:
     st.write("") 
@@ -37,7 +37,7 @@ with col_input2:
 
 # Hauptbereich für Ergebnisse
 if analysis_triggered and ticker_input:
-    with st.spinner(f"Berechne das 10-Säulen-Modell für {ticker_input}..."):
+    with st.spinner(f"Berechne das 10-Säulen-Modell mit Spaten-Logik für {ticker_input}..."):
         try:
             stock = yf.Ticker(ticker_input)
             info = stock.info
@@ -47,14 +47,14 @@ if analysis_triggered and ticker_input:
             price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
             currency = info.get('currency', 'USD')
             sector = info.get('sector', 'Unbekannt')
+            industry = info.get('industry', 'Unbekannt')
             pe_ratio = info.get('trailingPE', 0)
             market_cap = info.get('marketCap', 0)
             profit_margins = info.get('profit_margins', info.get('profitMargins', 0.0))
             
-            # --- DER NIKOLA-SCHUTZSCHILD (BULLSHIT-DETEKTOR) ---
-            # Prüfen, ob fundamentale Daten komplett fehlen oder das Unternehmen klinisch tot / Pleite ist
-            is_data_missing = (not market_cap or market_cap == 0 or price == 0.0 or not profit_margins)
-            is_bleeder = (profit_margins and profit_margins < -0.5) # Extremes Verbrennen von Geld
+            # --- 1. DER NIKOLA-SCHUTZSCHILD (BULLSHIT-DETEKTOR) ---
+            # Harte Pleite-Prüfung: Wenn Kurs 0 oder keine Marktkapitalisierung existiert -> Sofortiger Stresstest!
+            is_real_default = (not market_cap or market_cap == 0 or price == 0.0)
             
             st.markdown("---")
             st.subheader(f"Ergebnis für: {name} ({ticker_input})")
@@ -70,33 +70,55 @@ if analysis_triggered and ticker_input:
             with col4:
                 st.metric("Gewinnmarge", f"{profit_margins*100:.1f}%" if profit_margins else "N/A")
                 
+            st.markdown(f"**Ererkannte Branche (Spaten-Logik):** *{sector} / {industry}*")
             st.markdown("### 📊 Das 10-Säulen-Punktesystem (Max. 100 Punkte)")
             
-            if is_data_missing or is_bleeder:
-                # HARTE STRAFE DURCH DEN BULLSHIT-DETEKTOR
+            if is_real_default:
+                # --- STRESSTEST AUSGELÖST (Wie bei Nikola) ---
                 sander_punkte = 10
                 kurzweil_punkte = 15
-                gesamt_punkte = 25  # Komplette Abstrafung unter 40 Punkte
+                gesamt_punkte = 25  
+                spaten_status = "🚨 Hype-Ruine / Pleitegefahr"
             else:
-                # Reguläre Berechnung für gesunde Unternehmen
-                sander_marge = 5 if profit_margins > 0.15 else (3 if profit_margins > 0 else 1)
+                # --- 2. DIE BRANCHEN-SPATEN-LOGIK ---
+                
+                # A. Sander-Bewertung (Substanz & Stabilität)
+                if sector in ["Healthcare", "Technology"] and profit_margins < 0:
+                    # Biotech / Deep-Tech Startups dürfen in der Forschungsphase negative Margen haben
+                    sander_marge = 3 # Neutraler Punkt für F&E-Investition statt Totalabzug
+                else:
+                    sander_marge = 5 if profit_margins > 0.15 else (3 if profit_margins > 0 else 1)
+                
                 sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 25 else (2 if pe_ratio >= 25 else 3)
-                sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T"] else 3
+                sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T", "RECKITT.L"] else 3
                 sander_cashflow = 4 if profit_margins > 0.05 else 2
                 sander_bilanz = 4 
                 
                 summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
-                sander_punkte = summe_sander * 2 
+                sander_punkte = summe_sander * 2 # Skalierung auf 50 Max-Punkte
                 
-                is_future_sector = sector in ["Technology", "Healthcare", "Communication Services", "Semiconductors", "Financial Services"]
-                kurzweil_sektor = 5 if is_future_sector else 2
-                kurzweil_skalierung = 5 if is_future_sector else 3
-                kurzweil_reale_loesung = 5 if profit_margins > 0 else 3 
-                kurzweil_innovation = 4
+                # B. Kurzweil-Bewertung (Zukunft & Skalierung nach Spaten)
+                if sector in ["Technology", "Semiconductors", "Communication Services"]:
+                    # High-Speed Software & Tech
+                    k_sektor, k_skalierung, k_loesung = 5, 5, 5
+                elif sector in ["Healthcare"]:
+                    # Biotech & Pharma (Lange Zyklen, aber exponentielles Potenzial bei Durchbrüchen)
+                    k_sektor, k_skalierung, k_loesung = 5, 3, 4
+                elif sector in ["Financial Services"]:
+                    # Banken & Fintechs
+                    k_sektor, k_skalierung, k_loesung = 3, 4, 4
+                elif sector in ["Consumer Defensive", "Energy", "Industrials"]:
+                    # Klassische Industrie, Konsum, Tabak (Defensiver Spaten)
+                    k_sektor, k_skalierung, k_loesung = 2, 3, 4
+                else:
+                    # Standard-Fallback für unbekannte Spaten
+                    k_sektor, k_skalierung, k_loesung = 3, 3, 3
+                
+                kurzweil_innovation = 5 if sector in ["Technology", "Healthcare", "Semiconductors"] else 3
                 kurzweil_jobs_markt = 4
                 
-                summe_kurzweil = kurzweil_sektor + kurzweil_skalierung + kurzweil_reale_loesung + kurzweil_innovation + kurzweil_jobs_markt
-                kurzweil_punkte = summe_kurzweil * 2
+                summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
+                kurzweil_punkte = summe_kurzweil * 2 # Skalierung auf 50 Max-Punkte
                 
                 gesamt_punkte = sander_punkte + kurzweil_punkte
                 
@@ -115,18 +137,21 @@ if analysis_triggered and ticker_input:
             # Bewertung & Zeithorizont-Ausblick (36 Monate)
             st.markdown("### 🧭 Kompass-Fazit & 36-Monats-Prognose")
             
-            if gesamt_punkte >= 85:
+            if is_real_default:
+                status = "🚨 Hype-Ruine / Pleitegefahr (Stresstest ausgelöst!)"
+                ausblick = "Achtung: Grundlegende Marktdaten fehlen oder das Unternehmen ist klinisch insolvent. Sofortige Hype-Warnung nach Nikola-Muster!"
+            elif gesamt_punkte >= 85:
                 status = "💎 Omas absolut unangetastetes Kronjuwel"
-                ausblick = "Hervorragende Symbiose aus starker Substanz und exponentiellem Zukunfts-Turbo. Perfekt für den langfristigen 36-Monats-Aufbau ohne Nachtschicht-Sorgen."
+                ausblick = "Hervorragende Symbiose aus starker Substanz und branchenspezifischem Zukunfts-Turbo. Perfekt für den langfristigen 36-Monats-Aufbau."
             elif gesamt_punkte >= 65:
                 status = "✨ Geschliffener Diamant mit starkem Turbo"
-                ausblick = "Solides Fundament mit klarem Blick nach vorn. In den nächsten 36 Monaten mit solidem Rückenwind durch technologische Skalierung zu erwarten."
+                ausblick = "Solides Fundament im passenden Spaten mit klarem Blick nach vorn. Guter Rückenwind für die nächsten 36 Monate."
             elif gesamt_punkte >= 45:
-                status = "⛏️ Rohdiamant / Genauer Prüffall"
-                ausblick = "Spannender Ansatz, aber entweder hinkt die Substanz oder der Zukunftsfaktor ist noch nicht sauber monetarisiert. Genauer Blick auf die nächsten Quartale nötig."
+                status = "⛏️ Rohdiamant / Genauer Prüffall (Biotech- oder Deep-Tech-Modus)"
+                ausblick = "Forschungsstarker Sektor mit hohem Cash-Burn. Substanz zieht zwar Punkte ab, aber der Zukunftsfaktor bietet Potenzial für die nächsten Quartale."
             else:
-                status = "🚨 Hype-Ruine / Blender-Verdacht (Stresstest ausgelöst!)"
-                ausblick = "Achtung: Entweder fehlen essenzielle Fundamentaldaten völlig oder das Geschäftsmodell verbrennt nur Geld ohne reale Wertschöpfung. Sofortige Hype-Warnung!"
+                status = "⚠️ Schwacher Trend / Vorsicht geboten"
+                ausblick = "Weder überzeugende Substanz noch starker Zukunfts-Turbo. In den nächsten 36 Monaten eher ein Risiko-Investment."
                 
             st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
             
@@ -134,14 +159,14 @@ if analysis_triggered and ticker_input:
             st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 else:
     st.markdown("""
-    *Gib oben ein Ticker-Symbol ein und klicke auf **Analysieren**, um das 10-Säulen-Modell zu starten.*
+    *Gib oben ein Ticker-Symbol ein und klicke auf **Analysieren**, um das 10-Säulen-Modell mit Spaten-Logik zu starten.*
     """)
 
 # --- GLOSSAR AM ENDE DER SEITE ---
 st.markdown("---")
-with st.expander("📖 Das 10-Säulen-Modell (Klicken zum Öffnen)"):
+with st.expander("📖 Das 10-Säulen-Modell & Spaten-Logik (Klicken zum Öffnen)"):
     st.markdown("""
-    * **Säulen 1–5 (Beate Sander):** Gewinnmarge, faires KGV, Burggraben/Krisenfestigkeit, Cashflow/Dividendenstärke, gesunde Bilanz.
-    * **Säulen 6–10 (Ray Kurzweil):** Exponentieller Zukunftssektor, echte technologische Skalierbarkeit, reale Wertschöpfung (keine reine Burn-Rate), Innovationskraft, nachhaltiger Marktwert.
-    * **Der Stresstest-Filter:** Erkennt fehlende Bilanzen und Blender-Buden automatisch und zieht den Score sofort in den Keller.
+    * **Säulen 1–5 (Beate Sander):** Gewinnmarge, faires KGV, Burggraben, Cashflow, gesunde Bilanz (mit Biotech-Ausnahme für F&E).
+    * **Säulen 6–10 (Ray Kurzweil):** Branchenspezifische Zukunfts-Spaten (Tech, Healthcare, Finanzen, Konsum), Skalierbarkeit und echte Wertschöpfung.
+    * **Der Stresstest-Filter:** Schützt vor Pleite-Buden (Nikola-Schutzschild) bei fehlenden Marktdaten.
     """)
