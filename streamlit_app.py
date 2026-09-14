@@ -954,4 +954,26 @@ def safe_text(
             return text if text else fallback
         
     return text if text else fallback
-    
+    # ============================================================
+# OmaKurz™ Scanner - Benutzeroberfläche
+# ============================================================
+
+st.title("🧭 Oma-Kurz-Kompass")
+st.write("Willkommen im Depot-Kompass nach Beate Sander und Ray Kurzweil!")
+
+# Ein kleines Eingabefeld für das Ticker-Symbol
+ticker_symbol = st.text_input("Gib ein Ticker-Symbol ein (z. B. AAPL, MSFT):", value="AAPL")
+
+if ticker_symbol:
+    st.info(f"Analysiere Ticker: {ticker_symbol.upper()}...")
+    try:
+        t = yf.Ticker(ticker_symbol)
+        price = get_current_price(t)
+        currency = get_company_currency(t)
+        
+        if price:
+            st.success(Aktueller Kurs: {format_currency(price, currency)})
+        else:
+            st.warning("Konnte keinen aktuellen Kurs abrufen.")
+    except Exception as e:
+        st.error(f"Fehler bei der Abfrage: {e}")
