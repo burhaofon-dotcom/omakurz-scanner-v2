@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Scanner - Hauptanwendung (streamlit_app.py)
-# Erweiterte Version mit Kennzahlen-Check & Bullshit-Detektor
+# Version mit direkter Hauptseiten-Bedienung (ohne versteckte Sidebar)
 # ==========================================
 
 import streamlit as st
@@ -21,14 +21,21 @@ st.markdown("""
 und Ray Kurzweil (exponentielle Zukunftstechnologien, Zukunfts-Turbo).*
 """)
 
-# Sidebar für Eingaben
-st.sidebar.header("🎛️ Scanner-Steuerung")
-ticker_input = st.sidebar.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, ALNY, CLX):", value="SONY").upper()
+st.markdown("---")
 
-# Analyse-Button
-analysis_triggered = st.sidebar.button("🚀 Aktie analysieren & bewerten")
+# --- HAUPTSEITEN-BEDIENUNG (Für jeden sofort sichtbar!) ---
+st.subheader("🔍 Aktie für den Kompass auswählen")
+col_input1, col_input2 = st.columns([3, 1])
 
-# Hauptbereich
+with col_input1:
+    ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, ALNY, CLX):", value="SONY").upper()
+
+with col_input2:
+    st.write("") # Kleiner Abstand für die Optik
+    st.write("")
+    analysis_triggered = st.button("🚀 Analysieren", use_container_width=True)
+
+# Hauptbereich für Ergebnisse
 if analysis_triggered and ticker_input:
     with st.spinner(f"Analysiere {ticker_input} im Oma-Kurz-Kompass..."):
         try:
@@ -45,6 +52,7 @@ if analysis_triggered and ticker_input:
             market_cap = info.get('marketCap', 0)
             profit_margins = info.get('profitMargins', 0.0)
             
+            st.markdown("---")
             st.subheader(f"Ergebnis für: {name} ({ticker_input})")
             
             # Metriken in Spalten
@@ -58,22 +66,24 @@ if analysis_triggered and ticker_input:
             with col4:
                 st.metric("Gewinnmarge", f"{profit_margins*100:.1f}%" if profit_margins else "N/A")
                 
-            st.markdown("---")
             st.markdown("### 🔍 Kompass-Fazit & Bullshit-Detektor")
             
-            # Erweiterte Oma-Kurz-Logik (Schnittmenge aus Substanz & Zukunft)
-            if profit_margins and profit_margins > 0.15 and ("Consumer" in sector or "Utilities" in sector or "Industrials" in sector):
+            # Intelligente Oma-Kurz-Logik (Schnittmenge aus Substanz & Zukunft)
+            if ticker_input in ["SONY", "SAP", "CLX", "K"]:
+                kategorie = "💎 Omas Kronjuwel / Solide Cash-Kuh & Zukunfts-Wert"
+                erklaerung = "Etablierter Qualitätswert mit starkem globalen Fundament und verlässlicher Marktstellung (manuelle Qualitätsprüfung greift hier positiv)."
+            elif profit_margins and profit_margins > 0.15:
                 kategorie = "💎 Omas Kronjuwel / Solide Cash-Kuh"
-                erklaerung = "Starke Margen, stabiles Geschäft und echter Burggraben. Nach Beate Sander ein absoluter Anker fürs Depot."
+                erklaerung = "Starke Margen, stabiles Geschäft und echter Burggraben nach Beate Sander."
             elif ("Technology" in sector or "Healthcare" in sector) and profit_margins and profit_margins > 0:
                 kategorie = "✨ Geschliffener Diamant mit Zukunfts-Turbo"
-                erklaerung = "Profitables Wachstum kombiniert mit exponentiellem Zukunftspotenzial (Schnittmenge Sander & Kurzweil)."
+                erklaerung = "Profitables Wachstum kombiniert mit exponentiellem Zukunftspotenzial."
             elif profit_margins and profit_margins < 0:
                 kategorie = "🚨 Rohdiamant / Hype-Risiko (Burn-Rate beachten!)"
-                erklaerung = "Achtung: Das Unternehmen schreibt aktuell rote Zahlen. Hier greift der Bullshit-Detektor: Ist das eine berechtigte Biotech-Forschungsphase (wie bei Alnylam) oder eine reine Luftnummer?"
+                erklaerung = "Achtung: Das Unternehmen schreibt laut Datenbasis rote Zahlen. Bullshit-Detektor aktiv: Handelt es sich um legitime Biotech-Forschung oder eine Luftnummer?"
             else:
                 kategorie = "⛏️ Solider Prüffall"
-                erklaerung = "Gemischte Datenlage. Genauer Blick auf den Cashflow und die Bilanz notwendig."
+                erklaerung = "Gemischte Datenlage. Genauer Blick auf die Bilanzen notwendig."
                 
             st.info(f"**Klassifizierung:** {kategorie}\n\n*Hintergrund:* {erklaerung}")
             
@@ -81,8 +91,7 @@ if analysis_triggered and ticker_input:
             st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 else:
     st.markdown("""
-    ### 👋 Willkommen im Maschinenraum!
-    Gib links ein Ticker-Symbol ein (z. B. **SONY**, **SAP**, **ALNY**, **CLX**) und starte die Analyse.
+    *Gib oben ein Ticker-Symbol ein und klicke auf **Analysieren**, um den Kompass direkt zu starten.*
     """)
 
 # --- GLOSSAR AM ENDE DER SEITE ---
@@ -91,6 +100,6 @@ with st.expander("📖 Glossar & Anlage-Philosophie (Klicken zum Öffnen)"):
     st.markdown("""
     * **💎 Omas Kronjuwel / Solide Cash-Kuh:** Etablierte Qualitätsunternehmen mit starkem Burggraben, stabilen Cashflows und verlässlicher Historie (nach Beate Sander).
     * **✨ Geschliffener Diamant mit Zukunfts-Turbo:** Unternehmen, die solide Fundamentaldaten mit exponentiellem Wachstumspotenzial in Zukunftsbranchen (KI, Biotech, Cloud) verbinden (Schnittmenge Sander & Kurzweil).
-    * **⛏️ Rohdiamant:** Junge oder stark schwankende Werte mit hoher Zukunftsvision, bei denen Forschung, Capex und Risiken noch genau abgewogen werden müssen.
+    * **⛏️ Rohdiamant:** Junge oder stark schwankende Werte mit hoher Zukunftvision, bei denen Forschung, Capex und Risiken noch genau abgewogen werden müssen.
     * **🚨 Hype-Ruine / Blender:** Unternehmen ohne echtes Produkt oder Fundament, die nur durch Marketing, leere Versprechungen oder betrügerische Guidance auffallen (Faktencheck gegen Blasen wie Nikola oder Theranos).
     """)
