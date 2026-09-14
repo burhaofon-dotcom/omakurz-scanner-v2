@@ -86,7 +86,7 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                             fx_rate = fx_data['Close'].iloc[-1]
                             price_eur = price * fx_rate
                     except Exception:
-                        pass # Fallback auf Originalpreis, wenn Abfrage fehlschlägt
+                        pass 
                 
                 is_real_default = (not market_cap or market_cap == 0 or price == 0.0)
                 
@@ -114,12 +114,11 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     kurzweil_punkte = 15
                     gesamt_punkte = 25  
                 else:
-                    # Spezial-Erkennung für REITs und BDCs (Business Development Companies)
                     is_reit = "REIT" in industry or "Real Estate" in sector
                     is_bdc = "Capital" in name or "Investment" in industry or "Credit" in industry or ticker_input == "MAIN"
                     
                     if is_reit or is_bdc:
-                        sander_kgv = 4 # Angepasst für Cashflow- / Zinsstarken Finanz- oder Immobiliensektor
+                        sander_kgv = 4 
                         sander_marge = 4 if profit_margins > 0.15 else 3
                     else:
                         if sector in ["Healthcare", "Technology"] and profit_margins < 0:
@@ -135,11 +134,10 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
                     sander_punkte = summe_sander * 2 
                     
-                    # Kurzweil-Punkte je nach Spaten
                     if sector in ["Technology", "Semiconductors", "Communication Services"]:
                         k_sektor, k_skalierung, k_loesung = 5, 5, 5
                     elif is_reit or is_bdc or sector in ["Consumer Defensive", "Energy", "Utilities", "Financial Services"]:
-                        k_sektor, k_skalierung, k_loesung = 4, 4, 4 # Solider Cashflow- & Finanzierungs-Anker
+                        k_sektor, k_skalierung, k_loesung = 4, 4, 4 
                     elif sector in ["Healthcare"]:
                         k_sektor, k_skalierung, k_loesung = 5, 3, 4
                     else:
@@ -185,7 +183,6 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     
                 st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
                 
-                # Watchlist Button
                 watch_label = f"{name} ({ticker_input}) - {gesamt_punkte}/100 Pkt"
                 if st.button("📌 Zur Watchlist hinzufügen"):
                     if watch_label not in st.session_state.watchlist:
@@ -196,10 +193,9 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                         st.warning("Bereits auf der Watchlist.")
                 
             except Exception as e:
-                st.error(f5"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
+                st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 
 else:
-    # --- PRE-IPO & PRIVATE UNICORN FAKTENCHECK-MODUS ---
     st.markdown("### 🦄 Pre-IPO / Private Unicorn Web-Faktenchecker")
     st.markdown("Hier durchleuchtet der Kompass private Giganten anhand von harten Fakten und dem Bullshit-Detektor.")
     
@@ -255,7 +251,7 @@ else:
             if st.button("📌 Pre-IPO zur Watchlist hinzufügen"):
                 if unicorn_label not in st.session_state.watchlist:
                     st.session_state.watchlist.append(unicorn_label)
-                    st.success("Erfolgreich zur Watchlist hinzufügen! (Siehe Sidebar links)")
+                    st.success("Erfolgreich zur Watchlist hinzugefügt! (Siehe Sidebar links)")
                     st.rerun()
                 else:
                     st.warning("Bereits auf der Watchlist.")
