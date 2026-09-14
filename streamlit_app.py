@@ -1,5 +1,6 @@
 # ==========================================
 # OmaKurz™ Scanner - Hauptanwendung (streamlit_app.py)
+# Erweiterte Version mit Kennzahlen-Check & Bullshit-Detektor
 # ==========================================
 
 import streamlit as st
@@ -22,47 +23,57 @@ und Ray Kurzweil (exponentielle Zukunftstechnologien, Zukunfts-Turbo).*
 
 # Sidebar für Eingaben
 st.sidebar.header("🎛️ Scanner-Steuerung")
-ticker_input = st.sidebar.text_input("Ticker-Symbol eingeben (z. B. ALNY, SONY, SAP, CLX):", value="SONY").upper()
+ticker_input = st.sidebar.text_input("Ticker-Symbol eingeben (z. B. SONY, SAP, ALNY, CLX):", value="SONY").upper()
 
-# Analyse-Button in der Sidebar
+# Analyse-Button
 analysis_triggered = st.sidebar.button("🚀 Aktie analysieren & bewerten")
 
 # Hauptbereich
 if analysis_triggered and ticker_input:
-    with st.spinner(f"Analysiere {ticker_input} durch den Oma-Kurz-Kompass..."):
+    with st.spinner(f"Analysiere {ticker_input} im Oma-Kurz-Kompass..."):
         try:
             stock = yf.Ticker(ticker_input)
             info = stock.info
             
+            # Wichtige Kennzahlen sicher abgreifen
             name = info.get('longName', ticker_input)
             price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
             currency = info.get('currency', 'USD')
             sector = info.get('sector', 'Unbekannt')
             industry = info.get('industry', 'Unbekannt')
+            pe_ratio = info.get('trailingPE', None)
+            market_cap = info.get('marketCap', 0)
+            profit_margins = info.get('profitMargins', 0.0)
             
             st.subheader(f"Ergebnis für: {name} ({ticker_input})")
             
-            col1, col2, col3 = st.columns(3)
+            # Metriken in Spalten
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Aktueller Preis", f"{price} {currency}")
+                st.metric("Kurs", f"{price} {currency}")
             with col2:
-                st.metric("Sektor", sector)
+                st.metric("Marktkapitalisierung", f"{market_cap:,.0f}" if market_cap else "N/A")
             with col3:
-                st.metric("Branche", industry)
+                st.metric("KGV (Trailing PE)", f"{pe_ratio:.2f}" if pe_ratio else "N/A")
+            with col4:
+                st.metric("Gewinnmarge", f"{profit_margins*100:.1f}%" if profit_margins else "N/A")
                 
             st.markdown("---")
-            st.markdown("### 🔍 Kompass-Fazit & Bewertung")
+            st.markdown("### 🔍 Kompass-Fazit & Bullshit-Detektor")
             
-            # Logik für die Einordnung
-            if "Technology" in sector or "Healthcare" in sector or ticker_input in ["ALNY", "SONY", "SAP"]:
-                kategorie = "✨ Geschliffener Diamant mit Zukunfts-Turbo"
-                erklaerung = "Vereint technologische Innovationskraft / Zukunfts-Plattform mit echtem wirtschaftlichem Fundament."
-            elif "Consumer" in sector or "Utilities" in sector or ticker_input in ["CLX", "K"]:
+            # Erweiterte Oma-Kurz-Logik (Schnittmenge aus Substanz & Zukunft)
+            if profit_margins and profit_margins > 0.15 and ("Consumer" in sector or "Utilities" in sector or "Industrials" in sector):
                 kategorie = "💎 Omas Kronjuwel / Solide Cash-Kuh"
-                erklaerung = "Klassischer Substanzwert mit starkem Burggraben, ideal für den langfristigen Vermögensaufbau und verlässliche Stabilität."
+                erklaerung = "Starke Margen, stabiles Geschäft und echter Burggraben. Nach Beate Sander ein absoluter Anker fürs Depot."
+            elif ("Technology" in sector or "Healthcare" in sector) and profit_margins and profit_margins > 0:
+                kategorie = "✨ Geschliffener Diamant mit Zukunfts-Turbo"
+                erklaerung = "Profitables Wachstum kombiniert mit exponentiellem Zukunftspotenzial (Schnittmenge Sander & Kurzweil)."
+            elif profit_margins and profit_margins < 0:
+                kategorie = "🚨 Rohdiamant / Hype-Risiko (Burn-Rate beachten!)"
+                erklaerung = "Achtung: Das Unternehmen schreibt aktuell rote Zahlen. Hier greift der Bullshit-Detektor: Ist das eine berechtigte Biotech-Forschungsphase (wie bei Alnylam) oder eine reine Luftnummer?"
             else:
-                kategorie = "⛏️ Rohdiamant / Prüffall"
-                erklaerung = "Interessantes Geschäftsmodell, das genauer auf Cashflows und operative Stabilität geprüft werden muss."
+                kategorie = "⛏️ Solider Prüffall"
+                erklaerung = "Gemischte Datenlage. Genauer Blick auf den Cashflow und die Bilanz notwendig."
                 
             st.info(f"**Klassifizierung:** {kategorie}\n\n*Hintergrund:* {erklaerung}")
             
@@ -70,8 +81,8 @@ if analysis_triggered and ticker_input:
             st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 else:
     st.markdown("""
-    ### 👋 Willkommen zurück!
-    Gib links ein Ticker-Symbol ein (z. B. **SONY**, **SAP**, **ALNY** für Alnylam oder **CLX** für Clorox) und klicke auf **Aktie analysieren**, um den Kompass zu starten.
+    ### 👋 Willkommen im Maschinenraum!
+    Gib links ein Ticker-Symbol ein (z. B. **SONY**, **SAP**, **ALNY**, **CLX**) und starte die Analyse.
     """)
 
 # --- GLOSSAR AM ENDE DER SEITE ---
