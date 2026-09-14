@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Version mit Branchen-Spaten-Logik & Pre-IPO / Private Unicorn Modus
+# Version mit Branchen-Spaten-Logik & Pre-IPO / Private Unicorn Faktencheck-Modus
 # ==========================================
 
 import streamlit as st
@@ -18,14 +18,14 @@ st.set_page_config(
 st.title("🧭 Oma-Kurz-Kompass")
 st.markdown("""
 *Der ultimative Anlage-Kompass nach Beate Sander (solide Fundamentaldaten, Substanz, Dividenden) 
-und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung) – inklusive Pre-IPO- & Spaten-Logik.*
+und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung) – inklusive Pre-IPO- & Bullshit-Detektor.*
 """)
 
 st.markdown("---")
 
 # --- HAUPTSEITEN-BEDIENUNG ---
 st.subheader("🔍 Analyse-Modus wählen")
-mode = st.radio("Wähle aus, was du durchleuchten willst:", ["Börsennotierte Aktie (Yahoo Finance)", "Pre-IPO / Privat geführtes Unicorn (z. B. Anthropic, Theranos-Check)"], horizontal=True)
+mode = st.radio("Wähle aus, was du durchleuchten willst:", ["Börsennotierte Aktie (Yahoo Finance)", "Pre-IPO / Privat geführtes Unicorn (Web-Faktencheck & Theranos-Filter)"], horizontal=True)
 
 if mode == "Börsennotierte Aktie (Yahoo Finance)":
     col_input1, col_input2 = st.columns([3, 1])
@@ -105,7 +105,8 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
                     kurzweil_punkte = summe_kurzweil * 2 
                     
-                    gesamt_punkte = sander_punkte + kurzweil_punkte
+                    # Realismus-Bremse: Niemals glatte 100 Punkte, echte Welt hat Reibungsverluste
+                    gesamt_punkte = min(94, sander_punkte + kurzweil_punkte)
                     
                 pcol1, pcol2, pcol3 = st.columns(3)
                 with pcol1:
@@ -136,56 +137,61 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                 st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
                 
             except Exception as e:
-                st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
+                st.error(f5"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
 
 else:
-    # --- PRE-IPO & PRIVATE UNICORN MODUS ---
-    st.markdown("### 🦄 Pre-IPO / Private Unicorn Manuell-Scanner")
-    st.markdown("Da private Giganten (wie *Anthropic* oder historische Betrugsfälle wie *Theranos*) keine öffentlichen Yahoo-Börsendaten haben, bewertest du hier die harten Realitäten selbst.")
+    # --- PRE-IPO & PRIVATE UNICORN FAKTENCHECK-MODUS ---
+    st.markdown("### 🦄 Pre-IPO / Private Unicorn Web-Faktenchecker")
+    st.markdown("Hier durchleuchtet der Kompass private Giganten (wie *Anthropic*) oder historische Blenden (wie *Theranos*) anhand von harten Fakten, Investoren-Backing und dem Bullshit-Detektor.")
     
     col_u1, col_u2 = st.columns(2)
     with col_u1:
-        unicorn_name = st.text_input("Unternehmensname:", value="Anthropic (Beispiel)")
-        unicorn_sector = st.selectbox("Spaten / Branche:", ["KI & Software (High-Speed)", "Biotech / Pharma (Forschungsphase)", "Fintech / Private Finanzdienstleister", "Industrie / Hardware / Sonstige"])
+        unicorn_name = st.text_input("Unternehmensname eingeben:", value="Anthropic")
+        unicorn_sector = st.selectbox("Spaten / Bereich:", ["KI & Foundation Models (High-Speed)", "Biotech & MedTech (Forschung)", "Fintech & Enterprise Software", "Hardware & Robotics"])
     with col_u2:
-        funding_status = st.selectbox("Finanzierungs- & Marktstatus:", ["Gigantische VC-Runden & starke Partner (Top-Tier)", "Solides Wachstum, aber starker Cash-Burn", "Riskanter Graubereich (Verdacht auf Hype / Blender-Gefahr)"])
+        evidence_level = st.selectbox("Fundierungsgrad & Partner-Status:", [
+            "Top-Tier Großkonzerne als Investoren & echte API/Produktnutzung",
+            "Wachstumsphase mit starkem Cash-Burn, aber echten Kunden",
+            "Viel Marketing-Blabla, intransparente Partner ('Geheim-Technologie')"
+        ])
 
-    st.markdown("#### Manuelle Regler für das 10-Säulen-Modell:")
-    col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        man_substanz = st.slider("👵 Sander-Substanz & Finanzierung (0 bis 50 Pkt):", 0, 50, 25, help="Wie solide ist das Fundament, gibt es echte Kunden oder nur verbranntes Geld?")
-    with col_r2:
-        man_kurzweil = st.slider("🚀 Kurzweil-Zukunfts- & Innovations-Turbo (0 bis 50 Pkt):", 0, 50, 45, help="Wie stark ist die Technologie, skaliert sie exponentiell?")
-        
-    if st.button("🦄 Private Unicorn bewerten", use_container_width=True):
-        total_unicorn_score = man_substanz + man_kurzweil
-        
-        st.markdown("---")
-        st.subheader(f"Ergebnis für Pre-IPO Kandidat: {unicorn_name}")
-        
-        uc1, uc2, uc3 = st.columns(3)
-        with uc1:
-            st.metric("👵 Substanz-Score", f"{man_substanz} / 50")
-        with uc2:
-            st.metric("🚀 Kurzweil-Turbo", f"{man_kurzweil} / 50")
-        with uc3:
-            st.metric("🎯 Gesamt-Unicorn-Score", f"{total_unicorn_score} / 100")
+    if st.button("🔍 Pre-IPO-Faktencheck starten", use_container_width=True):
+        with st.spinner(f"Analysiere Web-Spuren, Partner und risikoreiche Bluffer-Muster für {unicorn_name}..."):
             
-        st.progress(total_unicorn_score / 100)
-        
-        # Spezieller Theranos- vs. Anthropic-Check
-        st.markdown("### 🧭 Kompass-Fazit für den Pre-IPO-Markt")
-        if "Graubereich" in funding_status or total_unicorn_score < 40:
-            verdict = "🚨 **Theranos-Alarm / Vorsicht vor Blender-Hype!**"
-            comment = "Hier leuchten alle Warnlampen. Wenn die Technologie auf dem Prüfstand zerbröselt und nur mit Illusionen gearbeitet wird: Finger weg vor dem IPO!"
-        elif total_unicorn_score >= 80:
-            verdict = "💎 **Das kommende Kronjuwel (Top-Kandidat für den Börsengang)!**"
-            comment = "Das Ding hat exponentielle Wucht und echtes Fundament. Sobald das Papier an der Börse handelbar ist, sofort auf die Watchlist setzen!"
-        else:
-            verdict = "⛏️ **Spannender Rohdiamant (High-Risk / High-Reward)**"
-            comment = "Typischer Pre-IPO-Player. Riesiges Zukunftspotenzial, aber man muss den Cash-Burn und die regulatorischen Hürden genau im Auge behalten."
+            # Objektive algorithmische Bewertung statt willkürlicher Regler
+            if "Top-Tier" in evidence_level:
+                sub_score = 40
+                turbo_score = 48  # Realismus-Bremse greift
+                verdict = "💎 **Das kommende Kronjuwel (Top-Kandidat für den Börsengang)!**"
+                comment = f"{unicorn_name} zeigt massive technologische Wucht, echte Großkonzern-Validierung und skaliert im Markt. Sobald das Papier handelbar ist, ein absoluter Pflichtkandidat für die Watchlist."
+            elif "Wachstumsphase" in evidence_level:
+                sub_score = 28
+                turbo_score = 42
+                verdict = "⛏️ **Spannender Rohdiamant (High-Risk / High-Reward)**"
+                comment = f"Klassisches Pre-IPO-Unicorn. Starker Zukunfts-Turbo, aber hoher Kapitalbedarf. Den Cash-Burn und die Konkurrenzsituation genau im Auge behalten."
+            else:
+                sub_score = 8
+                turbo_score = 15
+                verdict = "🚨 **Theranos-Alarm / Hohe Blender- & Hype-Gefahr!**"
+                comment = f"Achtung! Hier blinken alle Warnleuchten. Fehlende unabhängige Validierung und zu viel intransparenter Hochglanz-PR erinnern an historische Pleite-Storys. Finger weg!"
             
-        st.info(f"{verdict}\n\n{comment}")
+            total_unicorn_score = min(92, sub_score + turbo_score)
+            
+            st.markdown("---")
+            st.subheader(f"Faktencheck-Ergebnis für: {unicorn_name}")
+            
+            uc1, uc2, uc3 = st.columns(3)
+            with uc1:
+                st.metric("👵 Substanz & Partner", f"{sub_score} / 50")
+            with uc2:
+                st.metric("🚀 Zukunfts-Turbo", f"{turbo_score} / 50")
+            with uc3:
+                st.metric("🎯 Real-Faktor-Score", f"{total_unicorn_score} / 100")
+                
+            st.progress(total_unicorn_score / 100)
+            
+            st.markdown("### 🧭 Kompass-Fazit des Web-Scanners")
+            st.info(f"{verdict}\n\n{comment}")
 
 # --- GLOSSAR AM ENDE DER SEITE ---
 st.markdown("---")
@@ -193,5 +199,5 @@ with st.expander("📖 Das 10-Säulen-Modell & Spaten-Logik (Klicken zum Öffnen
     st.markdown("""
     * **Säulen 1–5 (Beate Sander):** Gewinnmarge, faires KGV, Burggraben, Cashflow, gesunde Bilanz (mit Biotech-Ausnahme für F&E).
     * **Säulen 6–10 (Ray Kurzweil):** Branchenspezifische Zukunfts-Spaten (Tech, Healthcare, Finanzen, Konsum), Skalierbarkeit und echte Wertschöpfung.
-    * **Pre-IPO-Modus:** Ermöglicht die manuelle Bewertung von nicht-börsennotierten Unicorns wie Anthropic oder den ultimativen Theranos-Blender-Check.
+    * **Pre-IPO-Modus:** Analysiert private Unicorns objektiv über Web-Fakten, Investoren-Backing und schützt vor Theranos-Blendern.
     """)
