@@ -1,4 +1,4 @@
-# ==========================================
+    # ==========================================
 # OmaKurz™ Kompass PRO - Hauptanwendung
 # Mit Gemini-KI, Stresstest & Härtegrad-Analyse
 # ==========================================
@@ -86,9 +86,24 @@ if analysis_triggered and ticker_input:
                 debt_to_equity = info.get('debtToEquity', "N/A") # Über 25-50% wird kritisch!
                 payout_ratio = info.get('payoutRatio', 0.0)      # Wie viel vom Gewinn geht für Dividende drauf?
                 
-                # 2. KI-Gehirn konfigurieren
+                # 2. KI-Gehirn konfigurieren & AUTO-DETECT MODELL
                 genai.configure(api_key=api_key_input)
-                model = genai.GenerativeModel('gemini-pro')
+                
+                # Wir holen uns einfach automatisch das Modell, das für deinen Key freigeschaltet ist!
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                
+                if not available_models:
+                    st.error("🚨 Dein API-Key hat keine Modelle hinterlegt. Prüfe Google AI Studio.")
+                    st.stop()
+                    
+                # Nimm bevorzugt ein 1.5-Modell, ansonsten das erstbeste funktionierende
+                chosen_model = available_models[0]
+                for m in available_models:
+                    if '1.5' in m:
+                        chosen_model = m
+                        break
+                        
+                model = genai.GenerativeModel(chosen_model)
                 
                 # 3. Der knallharte Prompt für die KI
                 prompt = f"""
@@ -140,6 +155,7 @@ if analysis_triggered and ticker_input:
                     st.metric("Payout Ratio", f"{payout_ratio*100:.1f}%" if isinstance(payout_ratio, float) else "N/A")
                     
                 st.markdown("---")
+                st.info(f"🤖 Verwendetes KI-Modell: {chosen_model}") # Kleiner Hinweis für uns
                 
                 # KI-Ausgabe direkt einblenden
                 st.markdown(ai_analysis)
@@ -161,7 +177,7 @@ if analysis_triggered and ticker_input:
 st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 0.85em;'>"
-    "Engineered by Gemini & Burhao  |  Data powered by Yahoo Finance"
+    "Engineered by Gemini & Burhao &nbsp;|&nbsp; Data powered by Yahoo Finance"
     "</p>", 
     unsafe_allow_html=True
 )
