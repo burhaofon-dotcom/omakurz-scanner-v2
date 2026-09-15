@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Version mit behobenem Tippfehler in Kurzweil-Punkte
+# Komplettpaket mit KGV-Fallback und neuen Sparten (Lebensmittel, Chemie)
 # ==========================================
 
 import streamlit as st
@@ -55,7 +55,7 @@ mode = st.radio("Wähle aus, was du durchleuchten willst:", ["Börsennotierte Ak
 if mode == "Börsennotierte Aktie (Yahoo Finance)":
     col_input1, col_input2 = st.columns([3, 1])
     with col_input1:
-        ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. HMC, 7267.T, 8035.T, MAIN):", value="HMC").upper()
+        ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. HMC, 7267.T, RECKITT.L, 4063.T):", value="7267.T").upper()
     with col_input2:
         st.write("") 
         st.write("")
@@ -119,24 +119,38 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     is_semis = "Semiconductor" in industry or "Semiconductors" in sector or "Electronics" in industry
                     is_tech = sector in ["Technology", "Communication Services"] and not is_semis
                     is_auto_mobility = sector in ["Consumer Cyclical", "Automotive"] or "Auto" in industry or "Vehicle" in industry
-                    is_industrial = sector in ["Industrials", "Manufacturing", "Materials", "Chemicals"]
                     
+                    # --- NEUE SPATEN ---
+                    is_food_consumer = sector in ["Consumer Defensive"] or "Household" in industry or "Food" in industry or "Beverages" in industry
+                    is_chem_materials = sector in ["Basic Materials", "Chemicals"] or "Chemical" in industry or "Specialty Chemicals" in industry
+                    is_industrial = sector in ["Industrials", "Manufacturing"] and not is_chem_materials
+                    
+                    # Effektives KGV mit Fallback falls Yahoo Finance "N/A" liefert
+                    effective_pe = pe_ratio if (pe_ratio and pe_ratio > 0) else 15.0 
+                    effective_margin = profit_margins if profit_margins else 0.08 # solider Default-Annahme-Wert bei Datenlücken
+
                     # --- 1. SANDER-LOGIK ---
                     if is_reit or is_bdc:
                         sander_kgv = 4 
-                        sander_marge = 4 if profit_margins > 0.15 else 3
+                        sander_marge = 4 if effective_margin > 0.15 else 3
                     elif is_semis or is_tech:
-                        sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 40 else (2 if pe_ratio >= 40 else 3)
-                        sander_marge = 5 if profit_margins > 0.20 else (3 if profit_margins > 0.05 else 1)
+                        sander_kgv = 5 if effective_pe < 40 else 3
+                        sander_marge = 5 if effective_margin > 0.20 else 3
                     elif is_auto_mobility:
-                        sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 15 else (3 if pe_ratio < 25 else 2)
-                        sander_marge = 4 if profit_margins > 0.05 else 2
+                        sander_kgv = 5 if effective_pe < 18 else 3
+                        sander_marge = 4 if effective_margin > 0.03 else 3
+                    elif is_food_consumer: # Neu: Lebensmittel & Haushaltsgüter (stabil, defensiv)
+                        sander_kgv = 5 if effective_pe < 22 else 3
+                        sander_marge = 5 if effective_margin > 0.10 else 3
+                    elif is_chem_materials: # Neu: Chemie & Spezialmaterialien
+                        sander_kgv = 5 if effective_pe < 20 else 3
+                        sander_marge = 4 if effective_margin > 0.08 else 3
                     else:
-                        sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 22 else (2 if pe_ratio >= 25 else 3)
-                        sander_marge = 5 if profit_margins > 0.15 else (3 if profit_margins > 0 else 1)
+                        sander_kgv = 5 if effective_pe < 22 else 3
+                        sander_marge = 5 if effective_margin > 0.10 else 3
                         
-                    sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T", "8035.T", "HMC", "7267.T", "RECKITT.L", "O", "NEE", "MAIN"] else 3
-                    sander_cashflow = 5 if (is_reit or is_bdc) else (4 if profit_margins > 0.06 else 2)
+                    sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T", "8035.T", "HMC", "7267.T", "RECKITT.L", "O", "NEE", "MAIN", "4063.T"] else 3
+                    sander_cashflow = 5 if (is_reit or is_bdc or is_food_consumer) else (4 if effective_margin > 0.06 else 2)
                     sander_bilanz = 4 
                     
                     summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
@@ -149,16 +163,20 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                         k_sektor, k_skalierung, k_loesung = 5, 5, 4
                     elif is_auto_mobility:
                         k_sektor, k_skalierung, k_loesung = 4, 4, 4
+                    elif is_chem_materials: # Chemie treibt oft Nanotech, Materialien & Future Tech
+                        k_sektor, k_skalierung, k_loesung = 4, 4, 4
+                    elif is_food_consumer: # Defensiver Konsum: stabiles Rückgrat, moderat in exponentieller Tech
+                        k_sektor, k_skalierung, k_loesung = 3, 3, 3
                     elif is_industrial:
                         k_sektor, k_skalierung, k_loesung = 4, 4, 4 
-                    elif is_reit or is_bdc or sector in ["Consumer Defensive", "Energy", "Utilities", "Financial Services"]:
+                    elif is_reit or is_bdc or sector in ["Energy", "Utilities", "Financial Services"]:
                         k_sektor, k_skalierung, k_loesung = 3, 3, 3 
                     elif sector in ["Healthcare"]:
                         k_sektor, k_skalierung, k_loesung = 5, 3, 4
                     else:
                         k_sektor, k_skalierung, k_loesung = 3, 3, 3
                     
-                    kurzweil_innovation = 4 if is_auto_mobility else (5 if is_semis else 3)
+                    kurzweil_innovation = 4 if (is_auto_mobility or is_chem_materials) else (5 if is_semis else 3)
                     kurzweil_jobs_markt = 4
                     
                     summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
@@ -183,6 +201,12 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                 elif is_auto_mobility:
                     status = "🚗 Solider Mobilitäts- & Value-Anker (Mit Innovations-Turbo)"
                     ausblick = "Klassischer Automobil- und Motorenbauer mit starken Marken, globaler Substanz und konsequenter Transformation."
+                elif is_food_consumer:
+                    status = "🛒 Defensiver Konsum- & Marken-Anker (Krisenfest)"
+                    ausblick = "Verlässlicher Konsumgüter-Riese mit starken Cashflows und hoher Preissetzungsmacht."
+                elif is_chem_materials:
+                    status = "🧪 Industrieller Chemie- & Material-Spezialist"
+                    ausblick = "Unverzichtbarer Grundstoff- und Spezialchemie-Player für globale Lieferketten."
                 elif is_semis:
                     status = "⚡ High-Tech Chip-Kraftwerk & Exponentieller Infrastruktur-Spaten"
                     ausblick = "Hervorragender Halbleiter-Ausrüster oder Chip-Player."
