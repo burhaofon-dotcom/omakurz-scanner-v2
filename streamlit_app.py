@@ -88,7 +88,7 @@ if analysis_triggered and ticker_input:
                 
                 # 2. KI-Gehirn konfigurieren
                 genai.configure(api_key=api_key_input)
-                model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                model = genai.GenerativeModel('gemini-pro')
                 
                 # 3. Der knallharte Prompt für die KI
                 prompt = f"""
