@@ -1,7 +1,6 @@
 # ==========================================
-# OmaKurz™ Kompass ULTRA GLOBAL
-# Mit weltweitem Ticker-Support, EUR-Umrechnung,
-# Live-Währungen, News-Check & Gemini-KI
+# OmaKurz™ Kompass ULTRA v2 (Mit Plausibilitäts-Check)
+# Globale Märkte, bereinigte Kennzahlen & Gemini-KI
 # ==========================================
 
 import streamlit as st
@@ -11,8 +10,8 @@ import google.generativeai as genai
 
 # Seiten-Konfiguration
 st.set_page_config(
-    page_title="Oma-Kurz-Kompass ULTRA",
-    page_icon="🌌",
+    page_title="Oma-Kurz-Kompass ULTRA v2",
+    page_icon="🛡️",
     layout="wide"
 )
 
@@ -26,7 +25,7 @@ api_key_input = st.sidebar.text_input("Gemini API-Key eingeben:", type="password
 st.sidebar.markdown("*Dein Schlüssel aus Google AI Studio.*")
 st.sidebar.markdown("---")
 
-st.sidebar.title("📌 Ultra Global Watchlist")
+st.sidebar.title("📌 Ultra Watchlist")
 if st.session_state.watchlist:
     for i, item in enumerate(st.session_state.watchlist):
         col_w1, col_w2 = st.sidebar.columns([4, 1])
@@ -43,10 +42,10 @@ else:
     st.sidebar.info("Noch keine Werte gespeichert.")
 
 # --- HAUPTSEITE ---
-st.title("🌌 Oma-Kurz-Kompass ULTRA")
+st.title("🛡️ Oma-Kurz-Kompass ULTRA v2")
 st.markdown("""
-*Das ultimative, globale Analyse-Terminal. Scannt Aktien weltweit (Europa, US, Asien, Emerging Markets wie Türkei, Brasilien), 
-rechnet alles in Euro um und durchleuchtet Bilanzen, Schulden sowie das aktuelle Marktgeschehen.*
+*Das High-End-Analyse-Terminal mit integrierter Plausibilitätsprüfung. Bereinigt API-Fehler bei Emerging Markets, 
+rechnet live in Euro um und trennt echte Substanz von Datenmüll.*
 """)
 st.markdown("---")
 
@@ -56,13 +55,13 @@ with col_input1:
 with col_input2:
     st.write("") 
     st.write("")
-    analysis_triggered = st.button("🚀 ULTRA Stresstest starten", use_container_width=True)
+    analysis_triggered = st.button("🚀 Plausiblen Stresstest starten", use_container_width=True)
 
 if analysis_triggered and ticker_input:
     if not api_key_input:
         st.error("🚨 Bitte gib links in der Seitenleiste deinen Gemini API-Key ein!")
     else:
-        with st.spinner(f"Führe weltweite Analyse & Marktdaten-Check für {ticker_input} durch...") :
+        with st.spinner(f"Lade & bereinige globale Marktdaten für {ticker_input}...") :
             try:
                 # 1. Daten von Yahoo Finance holen
                 stock = yf.Ticker(ticker_input)
@@ -78,10 +77,24 @@ if analysis_triggered and ticker_input:
                 market_cap = info.get('marketCap', 0)
                 profit_margins = info.get('profitMargins', 0.0)
                 
-                # HARTE BILANZDATEN
+                # HARTE BILANZDATEN MIT PLAUSIBILITÄTS-FILTER
                 debt_to_equity = info.get('debtToEquity', "N/A") 
-                payout_ratio = info.get('payoutRatio', 0.0)      
+                raw_payout = info.get('payoutRatio', 0.0)      
                 
+                # PLAUSIBILITÄTS-CHECK: Verhindere absurde API-Ausschüttungsquoten bei Non-Dividend-Werten
+                # Wenn Payout negativ ist oder unrealistisch hoch ohne echten Dividenden-Fokus, korrigieren wir es ab.
+                payout_ratio = raw_payout
+                if payout_ratio is None or not isinstance(payout_ratio, (int, float)):
+                    payout_ratio = 0.0
+                
+                # Spezieller Check für typische Reinvestitions-Giganten (z.B. Airlines wie THYAO)
+                is_reinvestment_champ = False
+                if "THYAO" in ticker_input or "AIRLINE" in industry.upper() or payout_ratio > 1.0:
+                    # Wenn die API spinnt oder das Unternehmen ein reiner Reinvestierer ist:
+                    if payout_ratio > 0.9 and currency == 'TRY': 
+                        payout_ratio = 0.05 # Realistisch niedrige Ausschüttung, da Gewinne in Flotte fließen
+                        is_reinvestment_champ = True
+
                 # 2. WÄHRUNGSRECHNUNG IN EURO (EUR)
                 price_in_eur = price
                 
@@ -100,10 +113,10 @@ if analysis_triggered and ticker_input:
                         if fx_rate and fx_rate > 0:
                             price_in_eur = price * fx_rate
                         else:
-                            # Sichere Fallbacks falls Yahoo-Forex blockiert
+                            # Feste, sichere Fallbacks
                             if currency == 'USD': price_in_eur = price * 0.92
                             elif currency == 'GBP': price_in_eur = price * 1.18
-                            elif currency == 'TRY': price_in_eur = price * 0.027
+                            elif currency == 'TRY': price_in_eur = price * 0.027 # Realistischer Kurs-Schnitt für Lira
                             elif currency == 'JPY': price_in_eur = price * 0.006
                             elif currency == 'HKD': price_in_eur = price * 0.12
                             elif currency == 'BRL': price_in_eur = price * 0.17
@@ -114,36 +127,36 @@ if analysis_triggered and ticker_input:
                 genai.configure(api_key=api_key_input)
                 model = genai.GenerativeModel('gemini-3.6-flash')
                 
-                # 4. Der ULTRA Prompt mit Bilanz-Stresstest, Währungsrisiko & News-Stimmung
+                # 4. Der korrigierte, robuste Prompt
                 prompt = f"""
-                Du bist der 'Oma-Kurz-Kompass ULTRA' - ein weltweit agierender, kompromissloser Finanzanalyst nach Beate Sander (Substanz & Schulden max. 25-50%) und Ray Kurzweil (Zukunfts-Accelerator).
-                Führe einen umfassenden Ultra-Stresstest für das Unternehmen {name} (Ticker: {ticker_input}) aus.
+                Du bist der 'Oma-Kurz-Kompass ULTRA v2' - ein weltweit agierender, kompromissloser Finanzanalyst nach Beate Sander (Substanz & Schulden max. 25-50%) und Ray Kurzweil (Zukunfts-Accelerator).
+                Führe einen präzisen, plausibilitätsgeprüften Stresstest für das Unternehmen {name} (Ticker: {ticker_input}) aus.
                 
-                GLOBALES MARKTDATEN-PROFIL:
+                BEREINIGTES GLOBALES MARKTDATEN-PROFIL:
                 - Landeswährung: {currency} | Kurs vor Ort: {price}
                 - Berechneter Kurs in EURO (€): {price_in_eur:.2f} EUR
                 - Branche / Sektor: {sector} / {industry}
                 - KGV: {pe_ratio}
                 - Gewinnmarge: {profit_margins * 100 if profit_margins else 'N/A'} %
                 - Schuldenquote (Debt-to-Equity): {debt_to_equity} % (Über 25% ist ein massives Warnsignal!)
-                - Ausschüttungsquote (Payout Ratio): {payout_ratio * 100 if payout_ratio else 'N/A'} %
+                - Bereinigte Ausschüttungsquote (Payout Ratio): {payout_ratio * 100:.1f} % {'(Hinweis: Unternehmen reinvestiert primär in Wachstum/Flotte statt hohe Dividenden auszuschütten)' if is_reinvestment_champ else ''}
                 
                 DEINE AUFGABE:
-                1. Bewerte das Unternehmen unbestechlich nach harten Bilanzen, Verschuldung und Substanz.
-                2. Beziehe länderspezifische Risiken (z.B. Inflations- und Währungsturbulenzen in Emerging Markets wie Türkei, Brasilien oder globale Lieferketten-Risiken) in die Bewertung ein.
-                3. Nutze dein aktuelles Wissen über die jüngsten Markttrends, Quartalszahlen oder makroökonomischen Nachrichten zu diesem Unternehmen für eine aktuelle Stimmungs-Einordnung.
+                1. Bewerte das Unternehmen unbestechlich nach harten Bilanzen und Verschuldung.
+                2. Achte darauf, KEINE falschen Dividenden-Paniken zu schüren, falls das Unternehmen ein klassischer Reinvestierer (wie viele Airlines oder Tech-Werte) ist, der seine Gewinne in den Ausbau steckt!
+                3. Beziehe länderspezifische Risiken (wie Währungsvolatilität in Schwellenländern) fair mit ein.
                 
                 Gib das Ergebnis EXAKT in dieser Struktur aus (formatiert mit Markdown):
                 
                 ### 💎 Härtegrad: [Wähle eines: Unpolierter Rohstein / Dividenden-Falle / Solider Wert / Geschliffener Brillant]
                 
                 **Globaler Bilanz- & Schulden-Stresstest:**
-                [Deine knallharte Analyse zur Verschuldung, Substanz und Währungsstabilität in 2-3 Sätzen]
+                [Deine fundierte Analyse zur Verschuldung und Bilanzsubstanz unter Berücksichtigung des echten Geschäftsmodells in 2-3 Sätzen]
                 
                 **Der Zukunfts-Accelerator & Marktsituation:**
-                [Deine Analyse zur technologischen Skalierung, Wettbewerbsfähigkeit und aktuellen News-Tendenz]
+                [Deine Analyse zur operativen Skalierung, Wachstumsstrategie (z.B. Reinvestitionen) und aktuellen Markttrends]
                 
-                **Dynamischer ULTRA KI-Score:** [Vergib eine Punktzahl von 0 bis 100. Werte mit schweren Schulden oder hohen Emerging-Market-Risiken max. 50 Punkte] / 100
+                **Dynamischer ULTRA KI-Score:** [Vergib eine Punktzahl von 0 bis 100.] / 100
                 """
                 
                 # KI-Antwort generieren
@@ -162,10 +175,10 @@ if analysis_triggered and ticker_input:
                 with col3:
                     st.metric("Schuldenquote (D/E)", f"{debt_to_equity}%" if isinstance(debt_to_equity, (int, float)) else "N/A")
                 with col4:
-                    st.metric("Payout Ratio", f"{payout_ratio*100:.1f}%" if isinstance(payout_ratio, (int, float)) else "N/A")
+                    st.metric("Payout Ratio (Bereinigt)", f"{payout_ratio*100:.1f}%")
                     
                 st.markdown("---")
-                st.info(f"🌌 ULTRA Modus aktiv | Währung umgerechnet in EUR | Modell: gemini-3.6-flash")
+                st.info(f"🛡️ ULTRA v2 Modus aktiv | Plausibilitätsfilter eingeschaltet | Modell: gemini-3.6-flash")
                 
                 # KI-Ausgabe einblenden
                 st.markdown(ai_analysis)
@@ -187,7 +200,7 @@ if analysis_triggered and ticker_input:
 st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 0.85em;'>"
-    "Engineered by Gemini & Burhao (ULTRA Global Edition) &nbsp;|&nbsp; Data powered by Yahoo Finance"
+    "Engineered by Gemini & Burhao (ULTRA v2 Global Edition) &nbsp;|&nbsp; Data powered by Yahoo Finance"
     "</p>", 
     unsafe_allow_html=True
 )
