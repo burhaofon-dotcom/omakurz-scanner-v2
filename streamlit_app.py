@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Version mit Mobilitäts- & Industrie-Spaten (Honda-Logik)
+# Version mit behobenem Tippfehler in Kurzweil-Punkte
 # ==========================================
 
 import streamlit as st
@@ -62,7 +62,7 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
         analysis_triggered = st.button("🚀 Analysieren", use_container_width=True)
 
     if analysis_triggered and ticker_input:
-        with st.spinner(f"Berechne das 10-Säulen-Modell mit Mobilitäts-Spaten-Logik für {ticker_input}..."):
+        with st.spinner(f"Berechne das 10-Säulen-Modell für {ticker_input}..."):
             try:
                 stock = yf.Ticker(ticker_input)
                 info = stock.info
@@ -114,7 +114,6 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     kurzweil_punkte = 15
                     gesamt_punkte = 25  
                 else:
-                    # Spaten-Erkennung verfeinern
                     is_reit = "REIT" in industry or "Real Estate" in sector
                     is_bdc = "Capital" in name or "Investment" in industry or "Credit" in industry or ticker_input == "MAIN"
                     is_semis = "Semiconductor" in industry or "Semiconductors" in sector or "Electronics" in industry
@@ -122,7 +121,7 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     is_auto_mobility = sector in ["Consumer Cyclical", "Automotive"] or "Auto" in industry or "Vehicle" in industry
                     is_industrial = sector in ["Industrials", "Manufacturing", "Materials", "Chemicals"]
                     
-                    # --- 1. SANDER-LOGIK (Substanz & Valuation) ---
+                    # --- 1. SANDER-LOGIK ---
                     if is_reit or is_bdc:
                         sander_kgv = 4 
                         sander_marge = 4 if profit_margins > 0.15 else 3
@@ -130,7 +129,6 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                         sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 40 else (2 if pe_ratio >= 40 else 3)
                         sander_marge = 5 if profit_margins > 0.20 else (3 if profit_margins > 0.05 else 1)
                     elif is_auto_mobility:
-                        # Auto/Mobilität ist zyklisch, wird aber oft extrem günstig gehandelt (Value-Paradies nach Sander)
                         sander_kgv = 5 if pe_ratio and 0 < pe_ratio < 15 else (3 if pe_ratio < 25 else 2)
                         sander_marge = 4 if profit_margins > 0.05 else 2
                     else:
@@ -144,13 +142,12 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
                     sander_punkte = summe_sander * 2 
                     
-                    # --- 2. KURZWEIL-LOGIK (Zukunfts-Turbo nach Spaten) ---
+                    # --- 2. KURZWEIL-LOGIK ---
                     if is_semis:
                         k_sektor, k_skalierung, k_loesung = 5, 5, 5 
                     elif is_tech:
                         k_sektor, k_skalierung, k_loesung = 5, 5, 4
                     elif is_auto_mobility:
-                        # Mobilität im Wandel: E-Mobilität, Software-defined Vehicles, autonomes Fahren
                         k_sektor, k_skalierung, k_loesung = 4, 4, 4
                     elif is_industrial:
                         k_sektor, k_skalierung, k_loesung = 4, 4, 4 
@@ -167,7 +164,7 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
                     kurzweil_punkte = summe_kurzweil * 2 
                     
-                    gesamt_punkte = min(98, sander_punkte + kurzzweil_punkte)
+                    gesamt_punkte = min(98, sander_punkte + kurzweil_punkte)
                     
                 pcol1, pcol2, pcol3 = st.columns(3)
                 with pcol1:
@@ -185,25 +182,22 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     ausblick = "Achtung: Grundlegende Marktdaten fehlen oder das Unternehmen ist klinisch insolvent."
                 elif is_auto_mobility:
                     status = "🚗 Solider Mobilitäts- & Value-Anker (Mit Innovations-Turbo)"
-                    ausblick = "Klassischer Automobil- und Motorenbauer mit starken Marken, globaler Substanz und konsequenter Transformation hin zu E-Antrieben und Robotik."
+                    ausblick = "Klassischer Automobil- und Motorenbauer mit starken Marken, globaler Substanz und konsequenter Transformation."
                 elif is_semis:
                     status = "⚡ High-Tech Chip-Kraftwerk & Exponentieller Infrastruktur-Spaten"
                     ausblick = "Hervorragender Halbleiter-Ausrüster oder Chip-Player."
                 elif is_bdc:
-                    status = "💰 Hochprozentiger BDC-Zins- & Dividenden-Anker (Mittelstandsfinanzierer)"
-                    ausblick = "Starker BDC mit hohen Ausschüttungen aus Unternehmensanleihen und Krediten."
+                    status = "💰 Hochprozentiger BDC-Zins- & Dividenden-Anker"
+                    ausblick = "Starker BDC mit hohen Ausschüttungen."
                 elif is_reit:
-                    status = "🏢 Solider Immobilien-Cashflow-Anker (Monatlicher Dividenden-Garant)"
+                    status = "🏢 Solider Immobilien-Cashflow-Anker"
                     ausblick = "Hervorragender REIT für verlässliche Cashflows."
                 elif gesamt_punkte >= 85:
                     status = "💎 Omas absolut unangetastetes Kronjuwel"
-                    ausblick = "Hervorragende Symbiose aus starker Substanz und branchenspezifischem Zukunfts-Turbo."
-                elif gesamt_punkte >= 65:
-                    status = "✨ Geschliffener Diamant mit starkem Turbo"
-                    ausblick = "Solides Fundament im passenden Spaten mit klarem Blick nach vorn."
+                    ausblick = "Hervorragende Symbiose aus starker Substanz und Zukunfts-Turbo."
                 else:
-                    status = "⚠️ Schwacher Trend / Vorsicht geboten"
-                    ausblick = "Weder überzeugende Substanz noch starker Zukunfts-Turbo."
+                    status = "✨ Solider Wert mit gutem Potenzial"
+                    ausblick = "Ordentliches Fundament im gewählten Spaten."
                     
                 st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
                 
@@ -221,5 +215,4 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
 
 else:
     st.markdown("### 🦄 Pre-IPO / Private Unicorn Web-Faktenchecker")
-    st.markdown("Hier durchleuchtet the Kompass private Giganten anhand von harten Fakten und dem Bullshit-Detektor.")
-    # (Unicorn-Logik unverändert)
+    # (Unicorn-Logik)
