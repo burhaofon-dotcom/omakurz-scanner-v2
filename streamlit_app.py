@@ -1,33 +1,30 @@
 # ==========================================
-# OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Finale Version: Alle Sparten, Pence-Fix, KGV-Fallback & Branding
+# OmaKurz™ Kompass PRO - Hauptanwendung
+# Mit Gemini-KI, Stresstest & Härtegrad-Analyse
 # ==========================================
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import google.generativeai as genai
 
 # Seiten-Konfiguration
 st.set_page_config(
-    page_title="Oma-Kurz-Kompass",
-    page_icon="🧭",
+    page_title="Oma-Kurz-Kompass PRO",
+    page_icon="💎",
     layout="wide"
 )
 
-# Session State für die Watchlist initialisieren
+# --- SESSION STATE INITIALISIEREN ---
 if 'watchlist' not in st.session_state:
     st.session_state.watchlist = []
 
-# Titel & Philosophie
-st.title("🧭 Oma-Kurz-Kompass")
-st.markdown("""
-*Der ultimative Anlage-Kompass nach Beate Sander (solide Fundamentaldaten, Substanz, Dividenden) 
-und Ray Kurzweil (exponentielle Zukunftstechnologien, echte Wertschöpfung & Skalierung).*
-""")
+# --- SIDEBAR: API-KEY & WATCHLIST ---
+st.sidebar.title("🧠 KI-Gehirn aktivieren")
+api_key_input = st.sidebar.text_input("Gemini API-Key eingeben (für den Pro-Modus):", type="password")
+st.sidebar.markdown("*Dein kostenloser Schlüssel aus Google AI Studio.*")
+st.sidebar.markdown("---")
 
-st.markdown("---")
-
-# --- SEITENLEISTE FÜR WATCHLIST ---
 st.sidebar.title("📌 Deine Watchlist")
 if st.session_state.watchlist:
     for i, item in enumerate(st.session_state.watchlist):
@@ -38,32 +35,35 @@ if st.session_state.watchlist:
             if st.button("❌", key=f"del_{i}"):
                 st.session_state.watchlist.pop(i)
                 st.rerun()
-                
-    if st.sidebar.button("🗑️ Watchlist komplett leeren"):
+    if st.sidebar.button("🗑️ Watchlist leeren"):
         st.session_state.watchlist = []
         st.rerun()
 else:
     st.sidebar.info("Noch keine Werte gespeichert.")
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("*Entwickelt für den professionellen 36-Monats-Fokus.*")
+# --- HAUPTSEITE ---
+st.title("💎 Oma-Kurz-Kompass PRO")
+st.markdown("""
+*Der ultimative, KI-gestützte Anlage-Kompass. Sucht gnadenlos nach dem Zukunfts-Accelerator 
+und bestraft Schuldenberge und Dividenden-Fallen.*
+""")
+st.markdown("---")
 
-# --- HAUPTSEITEN-BEDIENUNG ---
-st.subheader("🔍 Analyse-Modus wählen")
-mode = st.radio("Wähle aus, was du durchleuchten willst:", ["Börsennotierte Aktie (Yahoo Finance)", "Pre-IPO / Privat geführtes Unicorn (Web-Faktencheck & Theranos-Filter)"], horizontal=True)
+col_input1, col_input2 = st.columns([3, 1])
+with col_input1:
+    ticker_input = st.text_input("Ticker-Symbol eingeben (z.B. ENB, T, RKT.L, NEE):", value="T").upper()
+with col_input2:
+    st.write("") 
+    st.write("")
+    analysis_triggered = st.button("🚀 KI-Stresstest starten", use_container_width=True)
 
-if mode == "Börsennotierte Aktie (Yahoo Finance)":
-    col_input1, col_input2 = st.columns([3, 1])
-    with col_input1:
-        ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. HMC, 7267.T, RKT.L, 4063.T, NEE):", value="RKT.L").upper()
-    with col_input2:
-        st.write("") 
-        st.write("")
-        analysis_triggered = st.button("🚀 Analysieren", use_container_width=True)
-
-    if analysis_triggered and ticker_input:
-        with st.spinner(f"Berechne das 10-Säulen-Modell für {ticker_input}..."):
+if analysis_triggered and ticker_input:
+    if not api_key_input:
+        st.error("🚨 Bitte gib links in der Seitenleiste deinen Gemini API-Key ein, um den Stresstest zu starten!")
+    else:
+        with st.spinner(f"Analysiere Bilanz & Fundamentaldaten für {ticker_input}...") :
             try:
+                # 1. Daten von Yahoo Finance holen
                 stock = yf.Ticker(ticker_input)
                 info = stock.info
                 
@@ -71,205 +71,97 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                 price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
                 currency = info.get('currency', 'USD')
                 
-                # --- PENCE ZU PFUND KORREKTUR FÜR LONDON (.L) ---
+                # Pence zu GBP Korrektur
                 if currency == 'GBp':
                     price = price / 100.0
                     currency = 'GBP'
-                # -----------------------------------------------
 
                 sector = info.get('sector', 'Unbekannt')
                 industry = info.get('industry', 'Unbekannt')
-                pe_ratio = info.get('trailingPE', 0)
+                pe_ratio = info.get('trailingPE', "N/A")
                 market_cap = info.get('marketCap', 0)
-                profit_margins = info.get('profit_margins', info.get('profitMargins', 0.0))
+                profit_margins = info.get('profitMargins', 0.0)
                 
-                # Automatische Währungsumrechnung nach EUR holen, falls Fremdwährung
-                price_eur = price
-                if currency != "EUR":
-                    try:
-                        fx_ticker = f"{currency}EUR=X"
-                        fx_data = yf.Ticker(fx_ticker).history(period="1d")
-                        if not fx_data.empty:
-                            fx_rate = fx_data['Close'].iloc[-1]
-                            price_eur = price * fx_rate
-                    except Exception:
-                        pass 
+                # HARTE BILANZDATEN FÜR DEN STRESSTEST
+                debt_to_equity = info.get('debtToEquity', "N/A") # Über 25-50% wird kritisch!
+                payout_ratio = info.get('payoutRatio', 0.0)      # Wie viel vom Gewinn geht für Dividende drauf?
                 
-                is_real_default = (not market_cap or market_cap == 0 or price == 0.0)
+                # 2. KI-Gehirn konfigurieren
+                genai.configure(api_key=api_key_input)
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 
+                # 3. Der knallharte Prompt für die KI
+                prompt = f"""
+                Du bist der 'Oma-Kurz-Kompass' - ein gnadenloser Finanzanalyst nach der Philosophie von Beate Sander (Substanz) und Ray Kurzweil (exponentielles Wachstum).
+                Führe einen Stresstest für das Unternehmen {name} (Ticker: {ticker_input}) aus.
+                
+                HIER SIND DIE NACKTEN ZAHLEN:
+                - Branche: {sector} / {industry}
+                - KGV: {pe_ratio}
+                - Gewinnmarge: {profit_margins * 100 if profit_margins else 'N/A'} %
+                - Schuldenquote (Debt-to-Equity): {debt_to_equity} % (Über 25% ist ein massives Warnsignal!)
+                - Ausschüttungsquote (Payout Ratio): {payout_ratio * 100 if payout_ratio else 'N/A'} %
+                
+                DEINE AUFGABE:
+                Bewerte das Unternehmen schonungslos. Beantworte diese Punkte im direkten Klartext:
+                1. Gibt es ein Schuldenproblem? (Bestrafe alles über 25% extrem hart!)
+                2. Ist die Dividende eine Falle, die Wachstum und Innovation abwürgt?
+                3. Hat das Unternehmen einen "Accelerator" (einen Zukunfts-Turbo zur Skalierung) oder lebt es nur im Niemandsland der Vergangenheit?
+                
+                Gib das Ergebnis EXAKT in dieser Struktur aus (formatiert mit Markdown):
+                
+                ### 💎 Härtegrad: [Wähle eines: Unpolierter Rohstein / Dividenden-Falle / Solider Wert / Geschliffener Brillant]
+                
+                **Der Stresstest (Bilanz & Schulden):**
+                [Deine knallharte Analyse zu den Schulden und der Dividenden-Ausschüttung in 2-3 Sätzen]
+                
+                **Der Zukunfts-Accelerator:**
+                [Deine Analyse zum exponentiellen Wachstum: Gibt es Innovation oder nur Stillstand?]
+                
+                **Dynamischer KI-Score:** [Vergib eine Punktzahl von 0 bis 100. Werte mit massiven Schulden und ohne Accelerator dürfen MAXIMAL 55 Punkte bekommen!] / 100
+                """
+                
+                # KI-Antwort generieren
+                response = model.generate_content(prompt)
+                ai_analysis = response.text
+                
+                # 4. Ergebnisse anzeigen
                 st.markdown("---")
                 st.subheader(f"Ergebnis für: {name} ({ticker_input})")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    if currency != "EUR":
-                        st.metric("Kurs", f"{price:.2f} {currency}", f"ca. {price_eur:.2f} EUR")
-                    else:
-                        st.metric("Kurs", f"{price:.2f} EUR")
+                    st.metric("Kurs", f"{price:.2f} {currency}")
                 with col2:
-                    st.metric("Marktkapitalisierung", f"{market_cap:,.0f}" if market_cap else "N/A")
+                    st.metric("KGV", f"{pe_ratio:.2f}" if isinstance(pe_ratio, float) else "N/A")
                 with col3:
-                    st.metric("KGV (Trailing PE)", f"{pe_ratio:.2f}" if pe_ratio and pe_ratio > 0 else "N/A")
+                    st.metric("Schuldenquote (D/E)", f"{debt_to_equity}%" if isinstance(debt_to_equity, float) else "N/A")
                 with col4:
-                    st.metric("Gewinnmarge", f"{profit_margins*100:.1f}%" if profit_margins else "N/A")
+                    st.metric("Payout Ratio", f"{payout_ratio*100:.1f}%" if isinstance(payout_ratio, float) else "N/A")
                     
-                st.markdown(f"**Erkannte Branche (Spaten-Logik):** *{sector} / {industry}*")
-                st.markdown("### 📊 Das 10-Säulen-Punktesystem (Max. 100 Punkte)")
+                st.markdown("---")
                 
-                if is_real_default:
-                    sander_punkte = 10
-                    kurzweil_punkte = 15
-                    gesamt_punkte = 25  
-                else:
-                    is_reit = "REIT" in industry or "Real Estate" in sector
-                    is_bdc = "Capital" in name or "Investment" in industry or "Credit" in industry or ticker_input == "MAIN"
-                    is_semis = "Semiconductor" in industry or "Semiconductors" in sector or "Electronics" in industry
-                    is_tech = sector in ["Technology", "Communication Services"] and not is_semis
-                    is_auto_mobility = sector in ["Consumer Cyclical", "Automotive"] or "Auto" in industry or "Vehicle" in industry
-                    
-                    # --- NEUE ERWEITERTE SPATEN-LOGIK ---
-                    is_food_consumer = sector in ["Consumer Defensive"] or "Household" in industry or "Food" in industry or "Beverages" in industry
-                    is_chem_materials = sector in ["Basic Materials", "Chemicals"] or "Chemical" in industry or "Specialty Chemicals" in industry
-                    is_utilities = sector in ["Utilities"] or "Energy" in sector or "Renewable" in industry or "Electric" in industry
-                    is_industrial_defense = sector in ["Industrials", "Manufacturing"] and not is_chem_materials or "Aerospace" in industry or "Defense" in industry or "Machinery" in industry
-                    is_telecom = sector in ["Communication Services"] or "Telecom" in industry or "Wireless" in industry
-                    
-                    # Effektives KGV mit Fallback falls Yahoo Finance "N/A" liefert
-                    effective_pe = pe_ratio if (pe_ratio and pe_ratio > 0) else 15.0 
-                    effective_margin = profit_margins if profit_margins else 0.08 
-
-                    # --- 1. SANDER-LOGIK ---
-                    if is_reit or is_bdc:
-                        sander_kgv = 4 
-                        sander_marge = 4 if effective_margin > 0.15 else 3
-                    elif is_semis or is_tech:
-                        sander_kgv = 5 if effective_pe < 40 else 3
-                        sander_marge = 5 if effective_margin > 0.20 else 3
-                    elif is_auto_mobility:
-                        sander_kgv = 5 if effective_pe < 18 else 3
-                        sander_marge = 4 if effective_margin > 0.03 else 3
-                    elif is_food_consumer: 
-                        sander_kgv = 5 if effective_pe < 22 else 3
-                        sander_marge = 5 if effective_margin > 0.10 else 3
-                    elif is_chem_materials: 
-                        sander_kgv = 5 if effective_pe < 20 else 3
-                        sander_marge = 4 if effective_margin > 0.08 else 3
-                    elif is_utilities or is_telecom: # Versorger & Telecom: Hohe Substanz, moderate Marge
-                        sander_kgv = 4 if effective_pe < 25 else 3
-                        sander_marge = 4 if effective_margin > 0.08 else 2
-                    elif is_industrial_defense: # Industrie, Maschinenbau & Rüstung
-                        sander_kgv = 5 if effective_pe < 20 else 3
-                        sander_marge = 4 if effective_margin > 0.07 else 2
-                    else:
-                        sander_kgv = 5 if effective_pe < 22 else 3
-                        sander_marge = 5 if effective_margin > 0.10 else 3
-                        
-                    sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T", "8035.T", "HMC", "7267.T", "RKT.L", "RE1.DE", "O", "NEE", "MAIN", "4063.T"] else 3
-                    sander_cashflow = 5 if (is_reit or is_bdc or is_food_consumer or is_utilities) else (4 if effective_margin > 0.06 else 2)
-                    sander_bilanz = 4 
-                    
-                    summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
-                    sander_punkte = summe_sander * 2 
-                    
-                    # --- 2. KURZWEIL-LOGIK (ZUKUNFTS- & SINGULARITÄTS-SPATEN) ---
-                    if is_semis:
-                        k_sektor, k_skalierung, k_loesung = 5, 5, 5 
-                    elif is_tech:
-                        k_sektor, k_skalierung, k_loesung = 5, 5, 4
-                    elif is_auto_mobility or is_chem_materials:
-                        k_sektor, k_skalierung, k_loesung = 4, 4, 4
-                    elif is_utilities: # Grüne Energie / Netze sind das Rückgrat der KI-Infrastruktur (Rechenzentren)
-                        k_sektor, k_skalierung, k_loesung = 4, 4, 4
-                    elif is_industrial_defense: 
-                        k_sektor, k_skalierung, k_loesung = 4, 4, 3
-                    elif is_telecom:
-                        k_sektor, k_skalierung, k_loesung = 4, 3, 3
-                    elif is_food_consumer or is_reit or is_bdc:
-                        k_sektor, k_skalierung, k_loesung = 3, 3, 3 
-                    elif sector in ["Healthcare"]:
-                        k_sektor, k_skalierung, k_loesung = 5, 3, 4
-                    else:
-                        k_sektor, k_skalierung, k_loesung = 3, 3, 3
-                    
-                    kurzweil_innovation = 5 if is_semis else (4 if (is_auto_mobility or is_chem_materials or is_utilities) else 3)
-                    kurzweil_jobs_markt = 4
-                    
-                    summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
-                    kurzweil_punkte = summe_kurzweil * 2 
-                    
-                    gesamt_punkte = min(98, sander_punkte + kurzweil_punkte)
-                    
-                pcol1, pcol2, pcol3 = st.columns(3)
-                with pcol1:
-                    st.metric("👵 Sander-Punkte (Substanz)", f"{sander_punkte} / 50")
-                with pcol2:
-                    st.metric("🚀 Kurzweil-Punkte (Zukunft)", f"{kurzweil_punkte} / 50")
-                with pcol3:
-                    st.metric("🎯 Gesamt-Score", f"{gesamt_punkte} / 100")
-                    
-                st.progress(gesamt_punkte / 100)
+                # KI-Ausgabe direkt einblenden
+                st.markdown(ai_analysis)
                 
-                st.markdown("### 🧭 Kompass-Fazit & 36-Monats-Prognose")
-                if is_real_default:
-                    status = "🚨 Hype-Ruine / Pleitegefahr (Stresstest ausgelöst!)"
-                    ausblick = "Achtung: Grundlegende Marktdaten fehlen oder das Unternehmen ist klinisch insolvent."
-                elif is_auto_mobility:
-                    status = "🚗 Solider Mobilitäts- & Value-Anker (Mit Innovations-Turbo)"
-                    ausblick = "Klassischer Automobil- und Motorenbauer mit starken Marken, globaler Substanz und konsequenter Transformation."
-                elif is_food_consumer:
-                    status = "🛒 Defensiver Konsum- & Marken-Anker (Krisenfest)"
-                    ausblick = "Verlässlicher Konsumgüter-Riese mit starken Cashflows und hoher Preissetzungsmacht."
-                elif is_chem_materials:
-                    status = "🧪 Industrieller Chemie- & Material-Spezialist"
-                    ausblick = "Unverzichtbarer Grundstoff- und Spezialchemie-Player für globale Lieferketten."
-                elif is_utilities:
-                    status = "⚡ Energie-, Netz- & Infrastruktur-Versorger (KI-Rückgrat)"
-                    ausblick = "Essentieller Energieversorger oder Infrastruktur-Player mit hohen Sachwerten und stabiler Dividendenbasis."
-                elif is_industrial_defense:
-                    status = "⚙️ Industrie-, Maschinenbau- & Rüstungs-Anker"
-                    ausblick = "Zyklischer oder sicherheitsrelevanter Global Player mit starker industrieller Basis."
-                elif is_telecom:
-                    status = "📡 Telekommunikations- & Netz-Anker"
-                    ausblick = "Kapitalintensiver Telekommunikations-Riese mit wiederkehrenden Cashflows."
-                elif is_semis:
-                    status = "⚡ High-Tech Chip-Kraftwerk & Exponentieller Infrastruktur-Spaten"
-                    ausblick = "Hervorragender Halbleiter-Ausrüster oder Chip-Player."
-                elif is_bdc:
-                    status = "💰 Hochprozentiger BDC-Zins- & Dividenden-Anker"
-                    ausblick = "Starker BDC mit hohen Ausschüttungen."
-                elif is_reit:
-                    status = "🏢 Solider Immobilien-Cashflow-Anker"
-                    ausblick = "Hervorragender REIT für verlässliche Cashflows."
-                elif gesamt_punkte >= 85:
-                    status = "💎 Omas absolut unangetastetes Kronjuwel"
-                    ausblick = "Hervorragende Symbiose aus starker Substanz und Zukunfts-Turbo."
-                else:
-                    status = "✨ Solider Wert mit gutem Potenzial"
-                    ausblick = "Ordentliches Fundament im gewählten Spaten."
-                    
-                st.info(f"**Klassifizierung:** {status}\n\n**36-Monats-Fokus:** {ausblick}")
-                
-                watch_label = f"{name} ({ticker_input}) - {gesamt_punkte}/100 Pkt"
+                # Watchlist-Button
                 if st.button("📌 Zur Watchlist hinzufügen"):
+                    watch_label = f"{name} ({ticker_input}) - Stresstest absolviert"
                     if watch_label not in st.session_state.watchlist:
                         st.session_state.watchlist.append(watch_label)
                         st.success("Erfolgreich zur Watchlist hinzugefügt! (Siehe Sidebar links)")
                         st.rerun()
                     else:
                         st.warning("Bereits auf der Watchlist.")
-                
+                        
             except Exception as e:
-                st.error(f"Fehler beim Abrufen der Daten für {ticker_input}: {e}")
-
-else:
-    st.markdown("### 🦄 Pre-IPO / Private Unicorn Web-Faktenchecker")
-    # (Unicorn-Logik)
+                st.error(f"Fehler bei der Analyse von {ticker_input}: {e}")
 
 # --- BRANDING FOOTER ---
 st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 0.85em;'>"
-    "Engineered by Gemini & Burhao &nbsp;|&nbsp; Data powered by Yahoo Finance"
+    "Engineered by Gemini & Burhao  |  Data powered by Yahoo Finance"
     "</p>", 
     unsafe_allow_html=True
-        )
+)
