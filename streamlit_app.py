@@ -1,6 +1,6 @@
 # ==========================================
 # OmaKurz™ Kompass - Hauptanwendung (streamlit_app.py)
-# Komplettpaket mit KGV-Fallback und neuen Sparten (Lebensmittel, Chemie)
+# Finale Version: Alle Sparten, Pence-Fix, KGV-Fallback & Branding
 # ==========================================
 
 import streamlit as st
@@ -55,7 +55,7 @@ mode = st.radio("Wähle aus, was du durchleuchten willst:", ["Börsennotierte Ak
 if mode == "Börsennotierte Aktie (Yahoo Finance)":
     col_input1, col_input2 = st.columns([3, 1])
     with col_input1:
-        ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. HMC, 7267.T, RECKITT.L, 4063.T):", value="7267.T").upper()
+        ticker_input = st.text_input("Ticker-Symbol eingeben (z. B. HMC, 7267.T, RKT.L, 4063.T, NEE):", value="RKT.L").upper()
     with col_input2:
         st.write("") 
         st.write("")
@@ -70,6 +70,13 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                 name = info.get('longName', ticker_input)
                 price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
                 currency = info.get('currency', 'USD')
+                
+                # --- PENCE ZU PFUND KORREKTUR FÜR LONDON (.L) ---
+                if currency == 'GBp':
+                    price = price / 100.0
+                    currency = 'GBP'
+                # -----------------------------------------------
+
                 sector = info.get('sector', 'Unbekannt')
                 industry = info.get('industry', 'Unbekannt')
                 pe_ratio = info.get('trailingPE', 0)
@@ -120,14 +127,16 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     is_tech = sector in ["Technology", "Communication Services"] and not is_semis
                     is_auto_mobility = sector in ["Consumer Cyclical", "Automotive"] or "Auto" in industry or "Vehicle" in industry
                     
-                    # --- NEUE SPATEN ---
+                    # --- NEUE ERWEITERTE SPATEN-LOGIK ---
                     is_food_consumer = sector in ["Consumer Defensive"] or "Household" in industry or "Food" in industry or "Beverages" in industry
                     is_chem_materials = sector in ["Basic Materials", "Chemicals"] or "Chemical" in industry or "Specialty Chemicals" in industry
-                    is_industrial = sector in ["Industrials", "Manufacturing"] and not is_chem_materials
+                    is_utilities = sector in ["Utilities"] or "Energy" in sector or "Renewable" in industry or "Electric" in industry
+                    is_industrial_defense = sector in ["Industrials", "Manufacturing"] and not is_chem_materials or "Aerospace" in industry or "Defense" in industry or "Machinery" in industry
+                    is_telecom = sector in ["Communication Services"] or "Telecom" in industry or "Wireless" in industry
                     
                     # Effektives KGV mit Fallback falls Yahoo Finance "N/A" liefert
                     effective_pe = pe_ratio if (pe_ratio and pe_ratio > 0) else 15.0 
-                    effective_margin = profit_margins if profit_margins else 0.08 # solider Default-Annahme-Wert bei Datenlücken
+                    effective_margin = profit_margins if profit_margins else 0.08 
 
                     # --- 1. SANDER-LOGIK ---
                     if is_reit or is_bdc:
@@ -139,44 +148,50 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                     elif is_auto_mobility:
                         sander_kgv = 5 if effective_pe < 18 else 3
                         sander_marge = 4 if effective_margin > 0.03 else 3
-                    elif is_food_consumer: # Neu: Lebensmittel & Haushaltsgüter (stabil, defensiv)
+                    elif is_food_consumer: 
                         sander_kgv = 5 if effective_pe < 22 else 3
                         sander_marge = 5 if effective_margin > 0.10 else 3
-                    elif is_chem_materials: # Neu: Chemie & Spezialmaterialien
+                    elif is_chem_materials: 
                         sander_kgv = 5 if effective_pe < 20 else 3
                         sander_marge = 4 if effective_margin > 0.08 else 3
+                    elif is_utilities or is_telecom: # Versorger & Telecom: Hohe Substanz, moderate Marge
+                        sander_kgv = 4 if effective_pe < 25 else 3
+                        sander_marge = 4 if effective_margin > 0.08 else 2
+                    elif is_industrial_defense: # Industrie, Maschinenbau & Rüstung
+                        sander_kgv = 5 if effective_pe < 20 else 3
+                        sander_marge = 4 if effective_margin > 0.07 else 2
                     else:
                         sander_kgv = 5 if effective_pe < 22 else 3
                         sander_marge = 5 if effective_margin > 0.10 else 3
                         
-                    sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T", "8035.T", "HMC", "7267.T", "RECKITT.L", "O", "NEE", "MAIN", "4063.T"] else 3
-                    sander_cashflow = 5 if (is_reit or is_bdc or is_food_consumer) else (4 if effective_margin > 0.06 else 2)
+                    sander_burggraben = 5 if ticker_input in ["SONY", "SAP", "MSFT", "AAPL", "8306.T", "8035.T", "HMC", "7267.T", "RKT.L", "RE1.DE", "O", "NEE", "MAIN", "4063.T"] else 3
+                    sander_cashflow = 5 if (is_reit or is_bdc or is_food_consumer or is_utilities) else (4 if effective_margin > 0.06 else 2)
                     sander_bilanz = 4 
                     
                     summe_sander = sander_marge + sander_kgv + sander_burggraben + sander_cashflow + sander_bilanz
                     sander_punkte = summe_sander * 2 
                     
-                    # --- 2. KURZWEIL-LOGIK ---
+                    # --- 2. KURZWEIL-LOGIK (ZUKUNFTS- & SINGULARITÄTS-SPATEN) ---
                     if is_semis:
                         k_sektor, k_skalierung, k_loesung = 5, 5, 5 
                     elif is_tech:
                         k_sektor, k_skalierung, k_loesung = 5, 5, 4
-                    elif is_auto_mobility:
+                    elif is_auto_mobility or is_chem_materials:
                         k_sektor, k_skalierung, k_loesung = 4, 4, 4
-                    elif is_chem_materials: # Chemie treibt oft Nanotech, Materialien & Future Tech
+                    elif is_utilities: # Grüne Energie / Netze sind das Rückgrat der KI-Infrastruktur (Rechenzentren)
                         k_sektor, k_skalierung, k_loesung = 4, 4, 4
-                    elif is_food_consumer: # Defensiver Konsum: stabiles Rückgrat, moderat in exponentieller Tech
-                        k_sektor, k_skalierung, k_loesung = 3, 3, 3
-                    elif is_industrial:
-                        k_sektor, k_skalierung, k_loesung = 4, 4, 4 
-                    elif is_reit or is_bdc or sector in ["Energy", "Utilities", "Financial Services"]:
+                    elif is_industrial_defense: 
+                        k_sektor, k_skalierung, k_loesung = 4, 4, 3
+                    elif is_telecom:
+                        k_sektor, k_skalierung, k_loesung = 4, 3, 3
+                    elif is_food_consumer or is_reit or is_bdc:
                         k_sektor, k_skalierung, k_loesung = 3, 3, 3 
                     elif sector in ["Healthcare"]:
                         k_sektor, k_skalierung, k_loesung = 5, 3, 4
                     else:
                         k_sektor, k_skalierung, k_loesung = 3, 3, 3
                     
-                    kurzweil_innovation = 4 if (is_auto_mobility or is_chem_materials) else (5 if is_semis else 3)
+                    kurzweil_innovation = 5 if is_semis else (4 if (is_auto_mobility or is_chem_materials or is_utilities) else 3)
                     kurzweil_jobs_markt = 4
                     
                     summe_kurzweil = k_sektor + k_skalierung + k_loesung + kurzweil_innovation + kurzweil_jobs_markt
@@ -207,6 +222,15 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
                 elif is_chem_materials:
                     status = "🧪 Industrieller Chemie- & Material-Spezialist"
                     ausblick = "Unverzichtbarer Grundstoff- und Spezialchemie-Player für globale Lieferketten."
+                elif is_utilities:
+                    status = "⚡ Energie-, Netz- & Infrastruktur-Versorger (KI-Rückgrat)"
+                    ausblick = "Essentieller Energieversorger oder Infrastruktur-Player mit hohen Sachwerten und stabiler Dividendenbasis."
+                elif is_industrial_defense:
+                    status = "⚙️ Industrie-, Maschinenbau- & Rüstungs-Anker"
+                    ausblick = "Zyklischer oder sicherheitsrelevanter Global Player mit starker industrieller Basis."
+                elif is_telecom:
+                    status = "📡 Telekommunikations- & Netz-Anker"
+                    ausblick = "Kapitalintensiver Telekommunikations-Riese mit wiederkehrenden Cashflows."
                 elif is_semis:
                     status = "⚡ High-Tech Chip-Kraftwerk & Exponentieller Infrastruktur-Spaten"
                     ausblick = "Hervorragender Halbleiter-Ausrüster oder Chip-Player."
@@ -240,3 +264,12 @@ if mode == "Börsennotierte Aktie (Yahoo Finance)":
 else:
     st.markdown("### 🦄 Pre-IPO / Private Unicorn Web-Faktenchecker")
     # (Unicorn-Logik)
+
+# --- BRANDING FOOTER ---
+st.markdown("---")
+st.markdown(
+    "<p style='text-align: center; color: gray; font-size: 0.85em;'>"
+    "Engineered by Gemini & Burhao &nbsp;|&nbsp; Data powered by Yahoo Finance"
+    "</p>", 
+    unsafe_allow_html=True
+        )
