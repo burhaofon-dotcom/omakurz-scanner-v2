@@ -11,13 +11,11 @@ st.set_page_config(
 )
 
 # --- SICHERE API-KEY INITIALISIERUNG (Backend / st.secrets) ---
-# Der Key wird sicher über Streamlit Secrets geladen (keinsefalls im Frontend-Code sichtbar!)
-# In deiner lokalen .streamlit/secrets.toml hinterlegst du: GEMINI_API_KEY = "dein_schlüssel"
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception as e:
-    st.error("Sicherheitsfehler: Kein Gemini API-Key in den Streamlit-Secrets gefunden! Bitte hinterlege den Key in der Konfiguration.")
+    st.error("Sicherheitsfehler: Kein Gemini API-Key in den Streamlit-Secrets gefunden! Bitte hinterlege GEMINI_API_KEY in deiner secrets.toml.")
     st.stop()
 
 # --- MODELL AUSWAHL ---
@@ -28,7 +26,7 @@ generation_config = {
     "max_output_tokens": 8192,
 }
 model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",  # stabiles High-Performance Modell
+    model_name="gemini-2.0-flash",
     generation_config=generation_config
 )
 
@@ -67,64 +65,63 @@ if st.button("ULTRA-Stresstest starten 🚀"):
     if not ticker_input:
         st.warning("Bitte gib ein gültiges Tickersymbol ein.")
     else:
-        with st.spinner(f"Analysiere {ticker_input.upper()} im ULTRA v2 Modus..."):
+        with st.spinner(f"Analysiere {ticker_input.strip().upper()} im ULTRA v2 Modus..."):
             try:
                 # Daten über yfinance abrufen
-                stock = yf.Ticker(ticker_input)
-                info = stock.info
+                stock = yf.Ticker(ticker_input.strip())
+                info = stock.info or {}
                 
-                name = info.get('longName', ticker_input.upper())
-                price = info.get('currentPrice', info.get('regularMarketPrice', 0))
+                name = info.get('longName') or info.get('shortName') or ticker_input.upper()
+                price = info.get('currentPrice') or info.get('regularMarketPrice') or 0.0
                 currency = info.get('currency', 'EUR')
-                pe_ratio = info.get('trailingPE', 0)
+                
+                pe_ratio = info.get('trailingPE')
                 if not pe_ratio or pe_ratio < 0:
-                    pe_ratio = info.get('forwardPE', 0)
+                    pe_ratio = info.get('forwardPE')
                 
-                # Schuldenquote berechnen / abgreifen
-                debt_to_equity = info.get('debtToEquity', 0)
-                if debt_to_equity and debt_to_equity > 10: 
-                    # yfinance liefert D/E manchmal in Prozent (z.B. 84.1 statt 0.84)
-                    de_display = debt_to_equity
+                debt_to_equity = info.get('debtToEquity')
+                if debt_to_equity is not None:
+                    de_display = debt_to_equity if debt_to_equity > 10 else debt_to_equity * 100
                 else:
-                    de_display = debt_to_equity * 100 if debt_to_equity else 0
+                    de_display = None
                 
-                payout_ratio = info.get('payoutRatio', 0)
-                payout_display = payout_ratio * 100 if payout_ratio else 0.0
+                payout_ratio = info.get('payoutRatio')
+                payout_display = (payout_ratio * 100) if payout_ratio is not None else None
 
-                # --- ANZEIGE DER GRUDDATEN ---
+                # --- ANZEIGE DER GRUNDDATEN ---
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Kurs", f"{price:.2f} {currency}")
+                col1.metric("Kurs", f"{price:.2f} {currency}" if price else "N/A")
                 col2.metric("KGV", f"{pe_ratio:.2f}" if pe_ratio else "N/A")
-                col3.metric("Schuldenquote (D/E)", f"{de_display:.2f}%")
-                col4.metric("Payout Ratio", f"{payout_display:.1f}%")
+                col3.metric("Schuldenquote (D/E)", f"{de_display:.2f}%" if de_display is not None else "N/A")
+                col4.metric("Payout Ratio", f"{payout_display:.1f}%" if payout_display is not None else "N/A")
 
                 # --- PROMPT-STRUKTUR FÜR KI-ANALYSE MIT SEKTOR-KENNZEICHNUNG ---
                 prompt = f"""
-                Du bist der Senior-Stresstest-Analyst des 'Oma-Kurz-Kompass ULTRA v2' (Kombination aus Beate Sanders Substanz-Lehre und Ray Kurzweils Zukunfts-Accelerator).
-                Analysiere das folgende Unternehmen anhand der Rohdaten und ermittle Sektor, Branche und Score:
-                
-                Unternehmensname: {name}
-                Ticker: {ticker_input.upper()}
-                KGV: {pe_ratio}
-                Schuldenquote (D/E): {de_display}%
-                Ausschüttungsquote: {payout_display}%
-                
-                Deine Aufgabe:
-                1. Identifiziere exakt den Sektor und die Branche (z.B. Konsumgüter, Finanz-BDC, Industrie, Halbleiter, Software). Berücksichtige branchenspezifische Besonderheiten (z. B. hoher Hebel bei BDCs normal, strenge Industrie-Leine bei klassischen Firmen).
-                2. Bestimme den Härtegrad genau aus diesen drei Kategorien: 
-                   - "Geschliffener Brillant"
-                   - "Unpolierter Rohstein"
-                   - "Dividenden-Falle" (oder Pleite-Bude bei extremen Werten).
-                3. Vergib einen dynamischen ULTRA KI-Score von 1 bis 100 Punkten.
-                4. Schreibe eine knackige, fundierte Analyse im Stil von Beate Sander & Ray Kurzweil (Bilanz-Stresstest + Zukunfts-Accelerator & Marktsituation).
-                
-                Antworte im folgenden exakten Markdown-Format:
-                **Sektor & Branche:** [Dein erfaßter Sektor / Branche einfügen]
-                **Härtegrad:** [Genauer Härtegrad]
-                **Globaler Bilanz- & Schulden-Stresstest:** [Text...]
-                **Der Zukunfts-Accelerator & Marktsituation:** [Text...]
-                **Dynamischer ULTRA KI-Score:** [X] / 100
-                """
+Du bist der Senior-Stresstest-Analyst des 'Oma-Kurz-Kompass ULTRA v2' (Kombination aus Beate Sanders Substanz-Lehre und Ray Kurzweils Zukunfts-Accelerator).
+Analysiere das folgende Unternehmen anhand der Rohdaten und ermittle Sektor, Branche und Score:
+
+Unternehmensname: {name}
+Ticker: {ticker_input.strip().upper()}
+KGV: {f'{pe_ratio:.2f}' if pe_ratio else 'N/A'}
+Schuldenquote (D/E): {f'{de_display:.2f}%' if de_display is not None else 'N/A'}
+Ausschüttungsquote: {f'{payout_display:.1f}%' if payout_display is not None else 'N/A'}
+
+Deine Aufgabe:
+1. Identifiziere exakt den Sektor und die Branche (z.B. Konsumgüter, Finanz-BDC, Industrie, Halbleiter, Software). Berücksichtige branchenspezifische Besonderheiten (z. B. hoher Hebel bei BDCs normal, strenge Industrie-Leine bei klassischen Firmen).
+2. Bestimme den Härtegrad genau aus diesen drei Kategorien: 
+   - "Geschliffener Brillant"
+   - "Unpolierter Rohstein"
+   - "Dividenden-Falle" (oder Pleite-Bude bei extremen Werten).
+3. Vergib einen dynamischen ULTRA KI-Score von 1 bis 100 Punkten.
+4. Schreibe eine knackige, fundierte Analyse im Stil von Beate Sander & Ray Kurzweil (Bilanz-Stresstest + Zukunfts-Accelerator & Marktsituation).
+
+Antworte im folgenden exakten Markdown-Format:
+**Sektor & Branche:** [Dein erfaßter Sektor / Branche einfügen]
+**Härtegrad:** [Genauer Härtegrad]
+**Globaler Bilanz- & Schulden-Stresstest:** [Text...]
+**Der Zukunfts-Accelerator & Marktsituation:** [Text...]
+**Dynamischer ULTRA KI-Score:** [X] / 100
+"""
 
                 response = model.generate_content(prompt)
                 analysis_text = response.text
